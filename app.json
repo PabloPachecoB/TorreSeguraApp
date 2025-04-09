@@ -1,28 +1,27 @@
 {
   "expo": {
-    "name": "curso-reacnative-metacritic-app",
-    "slug": "curso-reacnative-metacritic-app",
+    "name": "new-metacritic-app",
+    "slug": "new-metacritic-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pablopacheco.newmetacriticapp"
     },
     "android": {
+      "package": "com.pablopacheco.newmetacriticapp",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       }
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
