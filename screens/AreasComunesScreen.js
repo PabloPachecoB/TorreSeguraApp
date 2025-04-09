@@ -15,6 +15,14 @@ import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
 
+
+
+
+
+
+
+
+
 const initialAreas = [
   {
     id: "1",
