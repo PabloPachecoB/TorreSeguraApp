@@ -21,7 +21,7 @@ export default function HomeScreen({ navigation }) {
   console.log("Usuario en HomeScreen:", user);
 
   const username = user?.username || "Usuario";
-  const role = user?.role || "Rol";
+  const role = user?.role || user?.rol?.nombre || "Rol";
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -68,12 +68,13 @@ export default function HomeScreen({ navigation }) {
     logout();
     navigation.replace("Login");
   }, [logout, navigation]);
-
-  if (!user || !user.username || !user.role) {
-    console.log("Usuario no válido, redirigiendo a Login...");
-    navigation.replace("Login");
-    return null;
-  }
+  
+  useEffect(() => {
+    if (!user || !user.username || !(user.role || user.rol?.nombre)) {
+      console.log("Usuario no válido, redirigiendo a Login...");
+      navigation.replace("Login");
+    }
+  }, [user]);
 
   if (loading) {
     console.log("Mostrando pantalla de carga...");

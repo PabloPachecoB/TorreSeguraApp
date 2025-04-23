@@ -7,82 +7,64 @@ import {
   ImageBackground,
   Image,
 } from "react-native";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import Icon from "react-native-vector-icons/Ionicons";
-import LottieView from "lottie-react-native";
 import { login } from "../services/authService";
 import { useUserContext } from "../context/UserContext";
-import { users } from "../utils/users";
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
-  const [selectedTab, setSelectedTab] = useState("login");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const { saveUser, user } = useUserContext();
 
-  // Redirigir a Home si el usuario ya está autenticado
   useEffect(() => {
-    if (user) {
-      console.log("Usuario ya autenticado, redirigiendo a Home...");
-      navigation.navigate("Home");
+    if (user && user.username && user.role) {
+      if (user.role === "Vigilante") {
+        navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+      }
     }
-  }, [user, navigation]);
+  }, [user]);
+  
 
-  const handleLogin = useCallback(async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      console.log("Iniciando proceso de login...");
-      console.log("Intentando iniciar sesión con:", { username, password });
-      const userData = await login(username, password);
-      console.log("Usuario encontrado:", userData);
-      console.log("Guardando usuario...");
-      await saveUser({
-        username: userData.username,
-        role: userData.role,
-        token: userData.token,
-      });
-      console.log("Usuario guardado, navegando a Home...");
-      navigation.navigate("Home");
-      console.log("Después de navigation.navigate en handleLogin");
-    } catch (error) {
-      console.error("Error en login:", error.message);
-      alert(error.message);
-    } finally {
-      setLoading(false);
-      console.log("Proceso de login finalizado, loading set to false");
-    }
-  }, [username, password, loading, saveUser, navigation]);
+  const handleLogin = async () => {
+    setErrorMsg("");
 
-  const handleLoginTab = () => {
-    setSelectedTab("login");
-    setUsername("");
-    setPassword("");
-  };
-
-  const handleForgotPassword = () => {
-    setSelectedTab("forgot");
-  };
-
-  const handleRecoverPassword = () => {
-    if (!username) {
-      alert("Por favor, ingresa tu nombre de usuario.");
+    if (!username || !password) {
+      setErrorMsg("Completa ambos campos para iniciar sesión.");
       return;
     }
 
-    const user = users.find((u) => u.username === username);
-    if (user) {
-      alert(`Tu contraseña es: ${user.password}`);
-    } else {
-      alert("Usuario no encontrado. Verifica tu nombre de usuario.");
-    }
-  };
+    if (loading) return;
+    setLoading(true);
 
-  const handleAboutUs = () => {
-    alert("Funcionalidad de About Us aún no implementada");
+    try {
+      const userData = await login(username, password);
+
+      await saveUser({
+        username: userData.username,
+        role: userData.rol.nombre,
+        rol: userData.rol,
+        token: userData.token,
+      });
+
+      if (userData.rol.nombre === "Vigilante") {
+        navigation.navigate("Visitantes");
+      } else if (userData.rol.nombre === "Residente") {
+        navigation.navigate("Home");
+      }
+    } catch (error) {
+      // console.error("Error en login:", error.message);
+      setErrorMsg(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,9 +100,9 @@ export default function LoginScreen({ navigation }) {
             marginBottom: 20,
           }}
         >
-          {selectedTab === "forgot" ? "RECUPERAR CONTRASEÑA" : "BIENVENIDO A TORRE SEGURA"}
+          BIENVENIDO A TORRE SEGURA
         </Text>
-        <View style={{ width: "100%", marginBottom: 30 }}>
+        <View style={{ width: "100%", marginBottom: 10 }}>
           <View
             style={{
               flexDirection: "row",
@@ -148,39 +130,56 @@ export default function LoginScreen({ navigation }) {
               editable={!loading}
             />
           </View>
-          {selectedTab === "login" && (
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#333333",
+              padding: 15,
+              borderRadius: 12,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: "#444",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 5,
+              elevation: 2,
+            }}
+          >
+            <Icon name="lock-closed-outline" size={20} color="#999" style={{ marginRight: 10 }} />
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#999"
+              secureTextEntry={secureText}
+              style={{ flex: 1, color: "#FFF" }}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+              <Icon name={secureText ? "eye-off-outline" : "eye-outline"} size={20} color="#999" />
+            </TouchableOpacity>
+          </View>
+
+          {errorMsg.length > 0 && (
             <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "#333333",
-                padding: 15,
-                borderRadius: 12,
-                marginBottom: 20,
-                borderWidth: 1,
-                borderColor: "#444",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 5,
-                elevation: 2,
-              }}
-            >
-              <Icon name="lock-closed-outline" size={20} color="#999" style={{ marginRight: 10 }} />
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor="#999"
-                secureTextEntry={secureText}
-                style={{ flex: 1, color: "#FFF" }}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading}
-              />
-              <TouchableOpacity onPress={() => setSecureText(!secureText)}>
-                <Icon name={secureText ? "eye-off-outline" : "eye-outline"} size={20} color="#999" />
-              </TouchableOpacity>
-            </View>
+            style={{
+              backgroundColor: "#ed6464",
+              borderColor: "#b02a2a",
+              borderWidth: 1.5,
+              padding: 10,
+              borderRadius: 10,
+              marginBottom: 10,
+            }}
+          >
+            <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "600" }}>
+              {errorMsg}
+            </Text>
+          </View>
           )}
+
           <TouchableOpacity
             style={{
               backgroundColor: "#00FF00",
@@ -194,7 +193,7 @@ export default function LoginScreen({ navigation }) {
               opacity: loading ? 0.6 : 1,
             }}
             activeOpacity={0.7}
-            onPress={selectedTab === "forgot" ? handleRecoverPassword : handleLogin}
+            onPress={handleLogin}
             disabled={loading}
           >
             <Text
@@ -205,86 +204,7 @@ export default function LoginScreen({ navigation }) {
                 fontWeight: "bold",
               }}
             >
-              {loading ? "CARGANDO..." : selectedTab === "forgot" ? "RECUPERAR" : "NEXT"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={{
-            backgroundColor: "#1A1A1A",
-            paddingVertical: 10,
-            paddingHorizontal: 30,
-            borderRadius: 20,
-            marginBottom: 40,
-          }}
-          onPress={handleAboutUs}
-        >
-          <Text
-            style={{
-              textAlign: "center",
-              color: "#FFF",
-              fontSize: 14,
-            }}
-          >
-            About Us
-          </Text>
-        </TouchableOpacity>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            width: "100%",
-            paddingHorizontal: 20,
-            marginBottom: 20,
-            backgroundColor: "transparent",
-          }}
-        >
-          <TouchableOpacity
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: selectedTab === "login" ? "#00FF00" : "#003366",
-              paddingVertical: 15,  
-              borderTopLeftRadius: 25,
-              borderBottomLeftRadius: 25,
-            }}
-            onPress={handleLoginTab}
-          >
-            <Icon name="person-outline" size={20} color="#FFF" style={{ marginRight: 5 }} />
-            <Text
-              style={{
-                color: "#FFF",
-                fontSize: 14,
-                fontWeight: "bold",
-              }}
-            >
-              Registrate
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: selectedTab === "forgot" ? "#00FF00" : "#003366",
-              paddingVertical: 15,
-              borderTopRightRadius: 25,
-              borderBottomRightRadius: 25,
-            }}
-            onPress={handleForgotPassword}
-          >
-            <Icon name="lock-closed-outline" size={20} color="#FFF" style={{ marginRight: 5 }} />
-            <Text
-              style={{
-                color: "#FFF",
-                fontSize: 14,
-                fontWeight: "bold",
-              }}
-            >
-              ¿Recuperar contraseña?
+              {loading ? "CARGANDO..." : "INICIAR SESIÓN"}
             </Text>
           </TouchableOpacity>
         </View>
