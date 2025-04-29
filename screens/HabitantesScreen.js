@@ -25,7 +25,7 @@ export default function HabitantesScreen({ navigation }) {
         style={styles.qrButton}
         onPress={() => navigation.navigate("QRCode")}
       >
-        <Text style={styles.qrButtonText}>Ver QR</Text>
+        <Text style={styles.qrButtonText}>Informacion</Text>
       </TouchableOpacity>
     </View>
   );
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.white,
     padding: 15,
-    borderRadius: 15,
+    borderRadius: 10,
     marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
