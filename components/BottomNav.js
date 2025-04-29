@@ -10,7 +10,7 @@ export default function BottomNav({ navigation, role, username }) {
 
   const handleHomeTab = () => {
     setSelectedTab("home");
-    navigation.navigate("Home", { username, role }); // Pasa username y role al navegar
+    navigation.navigate("Home", { username, role });
   };
 
   const handleNotificationsTab = () => {
@@ -21,7 +21,10 @@ export default function BottomNav({ navigation, role, username }) {
   return (
     <View style={styles.bottomNav}>
       <TouchableOpacity
-        style={[styles.navButton, selectedTab === "home" && { backgroundColor: COLORS.primary }]}
+        style={[
+          styles.navButton,
+          selectedTab === "home" && { backgroundColor: COLORS.primary },
+        ]}
         onPress={handleHomeTab}
       >
         <Icon
@@ -30,7 +33,11 @@ export default function BottomNav({ navigation, role, username }) {
           color={selectedTab === "home" ? COLORS.white : COLORS.black}
         />
         <Text
-          style={[styles.navText, selectedTab === "home" && { color: COLORS.white }]}
+          style={[
+            styles.navText,
+            selectedTab === "home" && { color: COLORS.white },
+            selectedTab === "home" && { fontFamily: "Roboto-Bold" },
+          ]}
         >
           Home
         </Text>
@@ -51,6 +58,7 @@ export default function BottomNav({ navigation, role, username }) {
           style={[
             styles.navText,
             selectedTab === "notifications" && { color: COLORS.white },
+            selectedTab === "notifications" && { fontFamily: "Roboto-Bold" },
           ]}
         >
           Notificaciones
@@ -63,24 +71,31 @@ export default function BottomNav({ navigation, role, username }) {
 const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "center",
     backgroundColor: COLORS.white,
-    paddingVertical: 10,
+    paddingVertical: 15,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     position: "absolute",
     bottom: 0,
-    width: "100%",
+    left: 0,
+    right: 0,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5,
   },
   navButton: {
+    flex: 1, // Cada botón ocupa el mismo espacio
     alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 10,
-    paddingHorizontal: SIZES.padding,
     borderRadius: SIZES.borderRadius,
   },
   navText: {
     fontSize: SIZES.fontSizeSmall,
+    fontFamily: "Roboto-Regular", // Por defecto usamos Roboto-Regular
     color: COLORS.black,
     marginTop: 5,
   },

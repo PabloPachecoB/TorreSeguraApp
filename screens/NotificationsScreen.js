@@ -26,14 +26,16 @@ const styles = StyleSheet.create({
     padding: SIZES.padding,
   },
   title: {
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
+    fontFamily: "Roboto-Bold", // Título principal
     fontWeight: "bold",
     color: COLORS.black,
     textAlign: "center",
     marginVertical: 20,
   },
   message: {
-    fontSize: SIZES.fontSizeMedium,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
     color: COLORS.gray,
     textAlign: "center",
   },

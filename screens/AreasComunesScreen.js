@@ -15,22 +15,21 @@ import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
 
-
 const initialAreas = [
   {
     id: "1",
     name: "Parrillero Monte Negro",
-    image: require("../assets/imgParrillero.png"), // Replace with your image path
+    image: require("../assets/imgParrillero.png"),
   },
   {
     id: "2",
     name: "Sala de Reuniones Muguel",
-    image: require("../assets/imgSaladerunion.png"), // Replace with your image path
+    image: require("../assets/imgSaladerunion.png"),
   },
   {
     id: "3",
     name: "Parque Nidito Feliz",
-    image: require("../assets/imgParque.png"), // Replace with your image path
+    image: require("../assets/imgParque.png"),
   },
 ];
 
@@ -66,7 +65,7 @@ export default function AreasComunesScreen({ navigation, route }) {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-outline" size={30} color={COLORS.black} />
+          <Icon name="arrow-back-outline" size={SIZES.iconSize} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Áreas Comunes</Text>
         <View style={{ width: 30 }} />
@@ -97,13 +96,14 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
+    fontFamily: "Roboto-Bold", // Título principal
     fontWeight: "bold",
     color: COLORS.black,
   },
   list: {
     padding: SIZES.padding,
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   areaItem: {
     flexDirection: "row",
@@ -123,7 +123,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   areaName: {
-    fontSize: SIZES.fontSizeMedium,
+    fontSize: SIZES.fontSizeSubtitle, // Tamaño para subtítulos
+    fontFamily: "Roboto-Medium", // Subtítulo
     fontWeight: "bold",
     color: COLORS.black,
     marginBottom: 10,
@@ -140,7 +141,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeSmall,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
     fontWeight: "bold",
   },
   areaImage: {

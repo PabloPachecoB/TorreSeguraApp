@@ -56,6 +56,9 @@ export default function VisitantesScreen({ navigation, route }) {
       <Text style={styles.visitanteText}>Documento: {item.document}</Text>
       <Text style={styles.visitanteText}>Fecha: {item.date}</Text>
       <Text style={styles.visitanteText}>Propósito: {item.purpose}</Text>
+      <TouchableOpacity style={styles.qrButton} onPress={() => navigation.navigate("QRCode")}>
+        <Text style={styles.qrButtonText}>Ver QR</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -139,7 +142,8 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
+    fontFamily: "Roboto-Bold", // Título principal
     fontWeight: "bold",
     color: COLORS.black,
   },
@@ -161,6 +165,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 10,
     color: COLORS.black,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
   },
   addButton: {
     backgroundColor: COLORS.primary,
@@ -169,13 +175,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addButtonText: {
-    color: COLORS.black,
-    fontSize: SIZES.fontSizeMedium,
+    color: COLORS.white,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Bold", // Texto destacado
     fontWeight: "bold",
   },
   list: {
     padding: SIZES.padding,
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   visitanteItem: {
     backgroundColor: COLORS.white,
@@ -189,7 +196,19 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   visitanteText: {
-    fontSize: SIZES.fontSizeMedium,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
     color: COLORS.black,
+  },
+  qrButton: {
+    backgroundColor: COLORS.primary,
+    padding: 10,
+    borderRadius: 5,
+  },
+  qrButtonText: {
+    color: COLORS.white,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
+    fontWeight: "bold",
   },
 });

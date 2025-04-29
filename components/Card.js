@@ -2,6 +2,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
+import { COLORS, SIZES } from "../constants";
 
 export default function Card({ title, number, color, hasWarning, onPress }) {
   return (
@@ -22,12 +23,12 @@ export default function Card({ title, number, color, hasWarning, onPress }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.white,
     width: "48%",
     padding: 15,
-    borderRadius: 15,
+    borderRadius: SIZES.borderRadius,
     marginBottom: 15,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
@@ -35,9 +36,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: SIZES.fontSizeSubtitle, // Tamaño para subtítulos
+    fontFamily: "Roboto-Medium", // Subtítulo
     fontWeight: "bold",
-    color: "#000",
+    color: COLORS.black,
     marginBottom: 10,
   },
   numberCircle: {
@@ -49,15 +51,16 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   number: {
-    fontSize: 16,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Bold", // Texto destacado
     fontWeight: "bold",
-    color: "#FFF",
+    color: COLORS.white,
   },
   warningIcon: {
     position: "absolute",
     top: -5,
     right: -5,
-    backgroundColor: "#FF3B30",
+    backgroundColor: COLORS.warning,
     borderRadius: 10,
     padding: 2,
   },

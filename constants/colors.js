@@ -1,11 +1,14 @@
 // constants/colors.js
 export const COLORS = {
-  primary: "#000000", // Corregí #00000 a #000000 (negro). Si querías un verde, podrías usar algo como "#00FF00"
-  background: "#F5F5F5", // Fondo de las pantallas
-  white: "#FFF",
-  black: "#000",
-  gray: "#999",
-  border: "#DDD",
-  warning: "#FF3B30", // Color para advertencias
-  transparent: "transparent", // Nuevo color para botones transparentes
+  primary: "#1E3A8A", // Azul oscuro para botones y acciones principales (en lugar de negro puro)
+  secondary: "#60A5FA", // Azul claro para elementos secundarios
+  background: "#F5F5F5", // Mantengo tu fondo gris claro
+  white: "#FFF", // Mantengo
+  black: "#000", // Mantengo
+  gray: "#6B7280", // Gris más suave para textos secundarios (en lugar de #999)
+  border: "#DDD", // Mantengo
+  warning: "#FF3B30", // Mantengo tu rojo para advertencias
+  success: "#10B981", // Verde para mensajes de éxito (ej. reserva confirmada)
+  error: "#EF4444", // Rojo para errores (ligeramente diferente al warning)
+  transparent: "transparent", // Mantengo
 };

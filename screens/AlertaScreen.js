@@ -1,4 +1,4 @@
-// screens/AreasComunesScreen.js
+// screens/AlertasScreen.js
 import React from "react";
 import {
   View,

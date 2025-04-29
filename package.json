@@ -18,6 +18,7 @@
     "expo": "~52.0.38",
     "expo-camera": "~16.0.18",
     "expo-dev-client": "^5.0.15",
+    "expo-font": "~13.0.4",
     "expo-status-bar": "~2.0.1",
     "lottie-react-native": "7.1.0",
     "nativewind": "^4.1.23",
@@ -33,7 +34,9 @@
     "react-native-svg": "15.8.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "~0.19.13",
-    "tailwindcss": "^3.3.2"
+    "splash-screen": "^4.0.1",
+    "tailwindcss": "^3.3.2",
+    "expo-splash-screen": "~0.29.24"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
