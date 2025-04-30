@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "package": "com.pablopacheco.newmetacriticapp",
+      "package": "",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
