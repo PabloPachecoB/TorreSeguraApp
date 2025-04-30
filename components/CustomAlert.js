@@ -46,7 +46,7 @@ const CustomAlert = ({
           <Text style={styles.message}>{message}</Text>
 
           <MyButton
-            text={primary}
+            text={primaryButtonText }
             onPress={onPrimaryPress || onClose}
             variant={success ? "success" : "danger"}
           />
