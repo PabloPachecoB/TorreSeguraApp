@@ -1,4 +1,3 @@
-// screens/LoginScreen.js
 import {
   View,
   Text,
@@ -42,7 +41,7 @@ export default function LoginScreen({ navigation }) {
       });
       navigation.navigate("Home");
     } catch (error) {
-      alert(error.message);
+      alert(error.message || "Error al iniciar sesión. Verifica tus credenciales o la conexión.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +59,7 @@ export default function LoginScreen({ navigation }) {
 
   const handleRecoverPassword = () => {
     if (!username) {
-      alert("Por favor, ingresa tu nombre de usuario.");
+      alert("Por favor, ingresa tu usuario del sistema de seguridad.");
       return;
     }
 
@@ -68,12 +67,12 @@ export default function LoginScreen({ navigation }) {
     if (user) {
       alert(`Tu contraseña es: ${user.password}`);
     } else {
-      alert("Usuario no encontrado. Verifica tu nombre de usuario.");
+      alert("Usuario no encontrado. Verifica tu usuario del sistema.");
     }
   };
 
   const handleAboutUs = () => {
-    alert("Funcionalidad de About Us aún no implementada");
+    alert("Torre Segura: Sistema de gestión de seguridad para condominios.");
   };
 
   return (
@@ -90,13 +89,13 @@ export default function LoginScreen({ navigation }) {
           resizeMode="contain"
         />
         <Text style={styles.title}>
-          {selectedTab === "forgot" ? "RECUPERAR CONTRASEÑA" : "BIENVENIDO A TORRE SEGURA"}
+          {selectedTab === "forgot" ? "RECUPERAR CONTRASEÑA" : "ACCESO A TORRE SEGURA"}
         </Text>
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <Icon name="person-outline" size={20} color={COLORS.gray} style={styles.inputIcon} />
             <TextInput
-              placeholder="Username"
+              placeholder="Usuario del sistema"
               placeholderTextColor={COLORS.gray}
               style={styles.input}
               value={username}
@@ -108,7 +107,7 @@ export default function LoginScreen({ navigation }) {
             <View style={styles.inputWrapper}>
               <Icon name="lock-closed-outline" size={20} color={COLORS.gray} style={styles.inputIcon} />
               <TextInput
-                placeholder="Password"
+                placeholder="Contraseña"
                 placeholderTextColor={COLORS.gray}
                 secureTextEntry={secureText}
                 style={styles.input}
@@ -132,12 +131,12 @@ export default function LoginScreen({ navigation }) {
             disabled={loading}
           >
             <Text style={styles.submitButtonText}>
-              {loading ? "CARGANDO..." : selectedTab === "forgot" ? "RECUPERAR" : "NEXT"}
+              {loading ? "CARGANDO..." : selectedTab === "forgot" ? "RECUPERAR" : "INGRESAR"}
             </Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.aboutUsButton} onPress={handleAboutUs}>
-          <Text style={styles.aboutUsText}>About Us</Text>
+          <Text style={styles.aboutUsText}>Sobre Torre Segura</Text>
         </TouchableOpacity>
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -148,7 +147,7 @@ export default function LoginScreen({ navigation }) {
             onPress={handleLoginTab}
           >
             <Icon name="person-outline" size={20} color={COLORS.white} style={styles.tabIcon} />
-            <Text style={styles.tabText}>Registrate</Text>
+            <Text style={styles.tabText}>Iniciar Sesión</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -158,7 +157,7 @@ export default function LoginScreen({ navigation }) {
             onPress={handleForgotPassword}
           >
             <Icon name="lock-closed-outline" size={20} color={COLORS.white} style={styles.tabIcon} />
-            <Text style={styles.tabText}>¿Recuperar contraseña?</Text>
+            <Text style={styles.tabText}>Recuperar Contraseña</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -177,38 +176,39 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
-    backgroundColor: "rgba(244, 200, 200, 0.43)",
+    backgroundColor: "rgba(0, 51, 102, 0.5)", // Fondo azul oscuro para seguridad
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
+    width: 140,
+    height: 140,
+    marginBottom: 25,
   },
   title: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
-    fontFamily: "Roboto-Bold", // Título principal
+    fontSize: SIZES.fontSizeTitle,
+    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 25,
+    textAlign: "center",
   },
   inputContainer: {
     width: "100%",
-    marginBottom: 30,
+    marginBottom: 35,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#333333",
+    backgroundColor: "#2A2A2A", // Fondo oscuro para inputs
     padding: 15,
     borderRadius: 12,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: "#4A4A4A",
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 2,
+    elevation: 3,
   },
   inputIcon: {
     marginRight: 10,
@@ -216,38 +216,38 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Regular",
   },
   submitButton: {
-    backgroundColor: "#00FF00",
+    backgroundColor: "#00A300", // Verde oscuro para seguridad
     padding: 15,
     borderRadius: 25,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 5,
-    elevation: 3,
+    elevation: 4,
   },
   submitButtonText: {
     textAlign: "center",
-    color: COLORS.black,
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Bold", // Texto destacado
+    color: COLORS.white,
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
   },
   aboutUsButton: {
-    backgroundColor: "#1A1A1A",
-    paddingVertical: 10,
-    paddingHorizontal: 30,
+    backgroundColor: "#1A3C66", // Azul oscuro para profesionalismo
+    paddingVertical: 12,
+    paddingHorizontal: 35,
     borderRadius: 20,
-    marginBottom: 40,
+    marginBottom: 45,
   },
   aboutUsText: {
     textAlign: "center",
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Regular",
   },
   tabContainer: {
     flexDirection: "row",
@@ -265,12 +265,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   activeTab: {
-    backgroundColor: "#00FF00",
+    backgroundColor: "#00A300", // Verde para pestaña activa
     borderTopLeftRadius: 25,
     borderBottomLeftRadius: 25,
   },
   inactiveTab: {
-    backgroundColor: "#003366",
+    backgroundColor: "#1A3C66", // Azul oscuro para pestaña inactiva
     borderTopRightRadius: 25,
     borderBottomRightRadius: 25,
   },
@@ -279,8 +279,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Regular",
     fontWeight: "bold",
   },
 });

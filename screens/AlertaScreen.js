@@ -1,4 +1,3 @@
-// screens/AlertScreen.js
 import React, { useState } from "react";
 import {
   View,
@@ -10,12 +9,14 @@ import {
   TextInput,
   Modal,
   Image,
+  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
+import { useUserContext } from "../context/UserContext"; // Added to get user
 import { COLORS, SIZES } from "../constants";
 
 const alertTypes = [
@@ -29,6 +30,7 @@ const alertTypes = [
 
 export default function AlertScreen({ navigation }) {
   const { selectedTab } = useNavigationContext();
+  const { user } = useUserContext(); // Get logged-in user
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [description, setDescription] = useState("");
@@ -60,22 +62,37 @@ export default function AlertScreen({ navigation }) {
       return;
     }
 
+    const alertDetails = {
+      type: selectedAlert.title,
+      description,
+      username: user?.username || "Usuario desconocido",
+    };
+
+    // Log alert details to terminal
+    console.log("Alerta enviada:", {
+      tipo: alertDetails.type,
+      descripción: alertDetails.description,
+      enviado_por: alertDetails.username,
+      fecha: new Date().toISOString(),
+    });
+
     try {
-      // Enviar solicitud al backend para registrar la alerta (simulado)
-      const response = await fetch(`https://tu-backend/api/alerts`, {
+      // Enviar solicitud al backend para registrar la alerta
+      const response = await fetch("https://tu-backend/api/alerts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // "Authorization": `Bearer ${user.token}`, // Descomenta y usa el token real cuando integres
+          // "Authorization": `Bearer ${user?.token}`, // Descomenta cuando integres el token
         },
         body: JSON.stringify({
           type: selectedAlert.title,
           description,
+          username: user?.username,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Error al enviar la alerta");
+        throw new Error(`Error HTTP: ${response.status}`);
       }
 
       saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
@@ -84,9 +101,9 @@ export default function AlertScreen({ navigation }) {
       setDescription("");
       setSelectedAlert(null);
     } catch (error) {
-      console.error("Error al enviar alerta:", error);
-      saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
-      Alert.alert("Éxito", "Alerta enviada correctamente (simulado).");
+      console.error("Error al enviar alerta:", error.message);
+      saveNotification(`Alerta enviada (simulada): ${selectedAlert.title} - ${description}`);
+      Alert.alert("Éxito", "Alerta enviada correctamente (simulada).");
       setModalVisible(false);
       setDescription("");
       setSelectedAlert(null);
@@ -135,7 +152,7 @@ export default function AlertScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>
-              Seguro quieres inter un {selectedAlert?.title.toLowerCase()}
+              ¿Seguro quieres enviar una alerta de {selectedAlert?.title.toLowerCase()}?
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -150,7 +167,7 @@ export default function AlertScreen({ navigation }) {
                 <Text style={styles.alertButtonText}>Alertar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.backButton} onPress={handleCloseModal}>
-                <Text style={styles.backButtonText}>Atras</Text>
+                <Text style={styles.backButtonText}>Atrás</Text>
               </TouchableOpacity>
             </View>
           </View>

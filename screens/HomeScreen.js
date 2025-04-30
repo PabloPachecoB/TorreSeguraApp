@@ -73,7 +73,7 @@ export default function HomeScreen({ navigation }) {
     }
   }, [navigation, role]);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback (() => {
     logout();
     navigation.replace("Login");
   }, [logout, navigation]);
