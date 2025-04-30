@@ -31,7 +31,7 @@ export default function LoginScreen({ navigation }) {
       }
     }
   }, [user]);
-  
+
 
   const handleLogin = async () => {
     setErrorMsg("");
@@ -165,20 +165,35 @@ export default function LoginScreen({ navigation }) {
 
           {errorMsg.length > 0 && (
             <View
-            style={{
-              backgroundColor: "#ed6464",
-              borderColor: "#b02a2a",
-              borderWidth: 1.5,
-              padding: 10,
-              borderRadius: 10,
-              marginBottom: 10,
-            }}
-          >
-            <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "600" }}>
-              {errorMsg}
-            </Text>
-          </View>
+              style={{
+                backgroundColor: "#ed6464",
+                borderColor: "#b02a2a",
+                borderWidth: 1.5,
+                padding: 10,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "600" }}>
+                {errorMsg}
+              </Text>
+            </View>
           )}
+<TouchableOpacity
+            onPress={() => { }}
+            style={{marginTop: -10 }}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={{
+                color: "#FFFFF",
+                fontSize: 14,
+                textDecorationLine: "underline",
+                fontWeight: "500"
+              }}
+            >
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={{
@@ -191,6 +206,7 @@ export default function LoginScreen({ navigation }) {
               shadowRadius: 5,
               elevation: 3,
               opacity: loading ? 0.6 : 1,
+              marginTop: 20,
             }}
             activeOpacity={0.7}
             onPress={handleLogin}
