@@ -25,7 +25,7 @@ export default function HabitantesScreen({ navigation }) {
         style={styles.qrButton}
         onPress={() => navigation.navigate("QRCode")}
       >
-        <Text style={styles.qrButtonText}>Ver QR</Text>
+        <Text style={styles.qrButtonText}>Informacion</Text>
       </TouchableOpacity>
     </View>
   );
@@ -51,7 +51,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   title: {
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
+    fontFamily: "Roboto-Bold", // Título principal
     fontWeight: "bold",
     color: COLORS.black,
     textAlign: "center",
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: SIZES.padding,
-    paddingBottom: 80, // Añadir padding inferior para que el BottomNav no tape el contenido
+    paddingBottom: 100,
   },
   item: {
     flexDirection: "row",
@@ -67,21 +68,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.white,
     padding: 15,
-    borderRadius: 15,
+    borderRadius: 10,
     marginBottom: 10,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 2,
   },
   name: {
-    fontSize: SIZES.fontSizeMedium,
+    fontSize: SIZES.fontSizeSubtitle, // Tamaño para subtítulos
+    fontFamily: "Roboto-Medium", // Subtítulo
     fontWeight: "bold",
     color: COLORS.black,
   },
   apartment: {
-    fontSize: SIZES.fontSizeSmall,
+    fontSize: SIZES.fontSizeSmall, // Tamaño para texto pequeño
+    fontFamily: "Roboto-Regular", // Texto secundario
     color: COLORS.gray,
   },
   qrButton: {
@@ -91,7 +94,8 @@ const styles = StyleSheet.create({
   },
   qrButtonText: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeSmall,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
     fontWeight: "bold",
   },
 });

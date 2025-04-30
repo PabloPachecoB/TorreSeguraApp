@@ -10,15 +10,11 @@ import { getMenuByRole } from "../services/menuService";
 import MainLayout from "../components/MainLayout";
 
 export default function HomeScreen({ navigation }) {
-  console.log("Renderizando HomeScreen...");
-
   const { user, logout } = useUserContext();
   const { selectedTab } = useNavigationContext();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  console.log("Usuario en HomeScreen:", user);
 
   const username = user?.username || "Usuario";
   const role = user?.role || user?.rol?.nombre || "Rol";
@@ -28,12 +24,9 @@ export default function HomeScreen({ navigation }) {
       setLoading(true);
       setError(null);
       try {
-        console.log("Cargando menú para el rol:", role);
         const menu = await getMenuByRole(role);
-        console.log("Menú cargado:", menu);
         setMenuItems(menu);
       } catch (err) {
-        console.error("Error al cargar el menú:", err.message);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -43,7 +36,6 @@ export default function HomeScreen({ navigation }) {
   }, [role]);
 
   const handleCardPress = useCallback((title) => {
-    console.log("Presionando tarjeta:", title);
     switch (title) {
       case "Habitantes":
         navigation.navigate("Habitantes");
@@ -55,8 +47,11 @@ export default function HomeScreen({ navigation }) {
       case "Alertas":
         navigation.navigate("Notifications");
         break;
-      case "Áreas Comunes": // Nuevo caso para Áreas Comunes
+      case "Áreas Comunes":
         navigation.navigate("AreasComunes");
+        break;
+      case "QR o Pass": // Añadimos el caso para "QR o Pass"
+        navigation.navigate("QRCode");
         break;
       default:
         alert(`Funcionalidad para "${title}" aún no implementada`);
@@ -64,7 +59,6 @@ export default function HomeScreen({ navigation }) {
   }, [navigation, role]);
 
   const handleLogout = useCallback(() => {
-    console.log("Cerrando sesión desde HomeScreen...");
     logout();
     navigation.replace("Login");
   }, [logout, navigation]);
@@ -77,7 +71,6 @@ export default function HomeScreen({ navigation }) {
   }, [user]);
 
   if (loading) {
-    console.log("Mostrando pantalla de carga...");
     return (
       <MainLayout navigation={navigation}>
         <Text style={styles.loadingText}>Cargando...</Text>
@@ -86,7 +79,6 @@ export default function HomeScreen({ navigation }) {
   }
 
   if (error) {
-    console.log("Mostrando pantalla de error:", error);
     return (
       <MainLayout navigation={navigation}>
         <Text style={styles.errorText}>Error: {error}</Text>
@@ -97,7 +89,6 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
-  console.log("Renderizando contenido principal de HomeScreen...");
   return (
     <MainLayout navigation={navigation}>
       <View style={styles.header}>
@@ -110,10 +101,10 @@ export default function HomeScreen({ navigation }) {
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-            <Icon name="notifications-outline" size={30} color={COLORS.black} style={styles.icon} />
+            <Icon name="notifications-outline" size={SIZES.iconSize} color={COLORS.black} style={styles.icon} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout}>
-            <Icon name="log-out-outline" size={30} color={COLORS.black} />
+            <Icon name="log-out-outline" size={SIZES.iconSize} color={COLORS.black} />
           </TouchableOpacity>
         </View>
       </View>
@@ -134,13 +125,6 @@ export default function HomeScreen({ navigation }) {
     </MainLayout>
   );
 }
-
-
-
-
-
-
-
 
 const styles = StyleSheet.create({
   header: {
@@ -164,12 +148,14 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   headerTitle: {
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeTitle,
+    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     color: COLORS.black,
   },
   headerSubtitle: {
     fontSize: SIZES.fontSizeSmall,
+    fontFamily: "Roboto-Regular",
     color: COLORS.gray,
   },
   icon: {
@@ -178,6 +164,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SIZES.padding,
+    paddingBottom: 100,
   },
   cardsContainer: {
     flexDirection: "row",
@@ -188,19 +175,22 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     marginTop: 50,
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeSubtitle,
+    fontFamily: "Roboto-Regular",
     color: COLORS.black,
   },
   errorText: {
     flex: 1,
     textAlign: "center",
     marginTop: 50,
-    fontSize: SIZES.fontSizeLarge,
+    fontSize: SIZES.fontSizeSubtitle,
+    fontFamily: "Roboto-Regular",
     color: COLORS.error,
   },
   logoutText: {
     textAlign: "center",
-    fontSize: SIZES.fontSizeMedium,
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Regular",
     color: COLORS.primary,
     marginTop: 20,
   },
