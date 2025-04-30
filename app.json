@@ -1,8 +1,8 @@
 {
   "expo": {
     
-    "name": "new-metacritic-app",
-    "slug": "new-metacritic-app",
+    "name": "TorrSegura",
+    "slug": "TorrSegura",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -18,13 +18,13 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pablopacheco.newmetacriticapp",
+      "bundleIdentifier": "com.pablopacheco.TorreSegura",
       "infoPlist": {
         "NSCameraUsageDescription": "Esta aplicación necesita acceso a la cámara para escanear códigos QR de los visitantes."
       }
     },
     "android": {
-      "package": "com.pablopacheco.newmetacriticapp",
+      "package": "com.pablopacheco.TorreSegura",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },

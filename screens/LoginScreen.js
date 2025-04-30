@@ -34,57 +34,57 @@ export default function LoginScreen({ navigation }) {
     }
   }, [user]);
 
-  // const handleLogin = useCallback(async () => {
-  //   if (loading) return;
-  //   setLoading(true);
-  //   try {
-  //     const userData = await login(username, password);
-  //     await saveUser({
-  //       username: userData.username,
-  //       role: userData.role,
-  //       token: userData.token,
-  //     });
-  //     navigation.navigate("Home");
-  //   } catch (error) {
-  //     alert(error.message);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, [username, password, loading, saveUser, navigation]);
-
-  const handleLogin = async () => {
-    setErrorMsg("");
-
-    if (!username || !password) {
-      setErrorMsg("Completa ambos campos para iniciar sesión.");
-      return;
-    }
-
+  const handleLogin = useCallback(async () => {
     if (loading) return;
     setLoading(true);
-
     try {
       const userData = await login(username, password);
-
       await saveUser({
         username: userData.username,
-        role: userData.rol.nombre,
-        rol: userData.rol,
+        role: userData.role,
         token: userData.token,
       });
-
-      if (userData.rol.nombre === "Vigilante") {
-        navigation.navigate("Visitantes");
-      } else if (userData.rol.nombre === "Residente") {
-        navigation.navigate("Home");
-      }
+      navigation.navigate("Home");
     } catch (error) {
-      // console.error("Error en login:", error.message);
-      setErrorMsg(error.message);
+      alert(error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [username, password, loading, saveUser, navigation]);
+
+  // const handleLogin = async () => {
+  //   setErrorMsg("");
+
+  //   if (!username || !password) {
+  //     setErrorMsg("Completa ambos campos para iniciar sesión.");
+  //     return;
+  //   }
+
+  //   if (loading) return;
+  //   setLoading(true);
+
+  //   try {
+  //     const userData = await login(username, password);
+
+  //     await saveUser({
+  //       username: userData.username,
+  //       role: userData.rol.nombre,
+  //       rol: userData.rol,
+  //       token: userData.token,
+  //     });
+
+  //     if (userData.rol.nombre === "Vigilante") {
+  //       navigation.navigate("Visitantes");
+  //     } else if (userData.rol.nombre === "Residente") {
+  //       navigation.navigate("Home");
+  //     }
+  //   } catch (error) {
+  //     // console.error("Error en login:", error.message);
+  //     setErrorMsg(error.message);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <ImageBackground
