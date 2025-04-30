@@ -2,28 +2,18 @@ import { Pressable, Text, StyleSheet } from "react-native";
 import { COLORS } from "../constants/colors";
 import { SIZES } from "../constants/sizes";
 
-const MyButton = ({
-  text,
-  onPress,
-  disabled = false,
-  variant = "default",
-  backgroundColor,
-  textColor,
-}) => {
+const MyButton = ({ text, onPress, disabled = false, variant = "default" }) => {
   const backgroundColors = {
     default: COLORS.primary,
     disabled: COLORS.gray,
-    pregunta: "#8B5CF6", // personalizado
-    cuento: "#6B21A8",   // personalizado
+    pregunta: "#8B5CF6",
+    cuento: "#6B21A8",
     success: COLORS.success,
     danger: COLORS.error,
   };
 
   const finalBackgroundColor =
-    backgroundColor || (disabled ? backgroundColors["disabled"] : backgroundColors[variant]);
-
-  const finalTextColor = textColor || COLORS.black;
-  console.log("🟦 BG color aplicado:", finalBackgroundColor);
+    disabled ? backgroundColors["disabled"] : backgroundColors[variant] || backgroundColors["default"];
 
   return (
     <Pressable
@@ -38,7 +28,7 @@ const MyButton = ({
         },
       ]}
     >
-      <Text style={[styles.text, { color: finalTextColor }]}>{text}</Text>
+      <Text style={styles.text}>{text}</Text>
     </Pressable>
   );
 };
@@ -57,8 +47,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   text: {
+    color: COLORS.primary,
     fontSize: SIZES.fontSizeSubtitle,
     fontWeight: "bold",
+    fontFamily: "Roboto-Bold",
   },
 });
 

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import MyButton from "./MyButton";
 import { CheckIcon, CheckIconfail } from "./Icons";
-import {COLORS} from "../constants/colors"
+import { COLORS } from "../constants/colors"
 import { SIZES } from "../constants/sizes";
 
 const { width } = Dimensions.get("window");
@@ -46,10 +46,9 @@ const CustomAlert = ({
           <Text style={styles.message}>{message}</Text>
 
           <MyButton
-            text={primaryButtonText}
+            text={primary}
             onPress={onPrimaryPress || onClose}
-            backgroundColor={success ? COLORS.success : COLORS.error}
-            textColor={COLORS.primary}
+            variant={success ? "success" : "danger"}
           />
 
           {secondaryButtonText && (
