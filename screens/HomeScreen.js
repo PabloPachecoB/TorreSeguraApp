@@ -50,6 +50,9 @@ export default function HomeScreen({ navigation }) {
       case "Áreas Comunes":
         navigation.navigate("AreasComunes");
         break;
+      case "QR o Pass": // Añadimos el caso para "QR o Pass"
+        navigation.navigate("QRCode");
+        break;
       default:
         alert(`Funcionalidad para "${title}" aún no implementada`);
     }
@@ -143,14 +146,14 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   headerTitle: {
-    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
-    fontFamily: "Roboto-Bold", // Título principal
+    fontSize: SIZES.fontSizeTitle,
+    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     color: COLORS.black,
   },
   headerSubtitle: {
-    fontSize: SIZES.fontSizeSmall, // Tamaño para texto pequeño
-    fontFamily: "Roboto-Regular", // Texto secundario
+    fontSize: SIZES.fontSizeSmall,
+    fontFamily: "Roboto-Regular",
     color: COLORS.gray,
   },
   icon: {
@@ -170,22 +173,22 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     marginTop: 50,
-    fontSize: SIZES.fontSizeSubtitle, // Tamaño para subtítulos
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeSubtitle,
+    fontFamily: "Roboto-Regular",
     color: COLORS.black,
   },
   errorText: {
     flex: 1,
     textAlign: "center",
     marginTop: 50,
-    fontSize: SIZES.fontSizeSubtitle, // Tamaño para subtítulos
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeSubtitle,
+    fontFamily: "Roboto-Regular",
     color: COLORS.error,
   },
   logoutText: {
     textAlign: "center",
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: SIZES.fontSizeBody,
+    fontFamily: "Roboto-Regular",
     color: COLORS.primary,
     marginTop: 20,
   },
