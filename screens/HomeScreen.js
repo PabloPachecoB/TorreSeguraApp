@@ -54,15 +54,30 @@ export default function HomeScreen({ navigation }) {
       case "Mis Visitantes":
         navigation.navigate("Visitantes", { role });
         break;
-      case "Alertas":
-        navigation.navigate("Notifications");
-        break;
       case "Áreas Comunes":
         navigation.navigate("AreasComunes");
         break;
+
       case "QR o Pass": // Añadimos el caso para "QR o Pass"
         navigation.navigate("QRCode");
         break;
+
+      case "Invitaciones": //inviyaciones formulario
+        navigation.navigate("InvitationScreen");
+        break;
+
+      case "Alertas":
+        navigation.navigate("AlertScreen");
+        break;
+
+      case "Pagos":
+        navigation.navigate("PaymentScreen");
+        break;
+
+      case "Lista Total":
+        navigation.navigate("ListaTotalScreen");
+        break;
+
       default:
         alert(`Funcionalidad para "${title}" aún no implementada`);
     }

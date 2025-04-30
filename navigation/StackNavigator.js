@@ -8,6 +8,13 @@ import HabitantesScreen from "../screens/HabitantesScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import VisitantesScreen from "../screens/VisitantesScreen";
 import QRCodeScreen from "../screens/QRCodeScreen";
+import InvitationScreen from "../screens/InvitationScreen";
+import AlertScreen from "../screens/AlertaScreen";
+import PaymentScreen from "../screens/PaymentScreen";
+import ListaTotalScreen from '../screens/ListaTotalScreen'
+
+
+
 
 const Stack = createStackNavigator();
 
@@ -21,6 +28,10 @@ export default function StackNavigator() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Visitantes" component={VisitantesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="QRCode" component={QRCodeScreen} options={{ headerShown: false }} />
-    </Stack.Navigator>
+      <Stack.Screen name="InvitationScreen" component={InvitationScreen} options={{headerShown: false}} />
+      <Stack.Screen name="AlertScreen" component={AlertScreen} options={{headerShown: false}} />
+      <Stack.Screen name="PaymentScreen" component={PaymentScreen} options={{headerShown: false}}/>
+      <Stack.Screen name="ListaTotalScreen" component={ListaTotalScreen} options={{headerShown: false}}/>
+      </Stack.Navigator>
   );
 }
