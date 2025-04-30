@@ -7,6 +7,8 @@ const API_URL = `${API_BASE}/api/token/`;
 
 export const login = async (username, password) => {
   try {
+    // Aquí imprimimos la URL que se usará para login
+    console.log("Intentando conectarse a:", API_URL);
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {

@@ -1,12 +1,12 @@
 {
   "expo": {
     
-    "name": "TorrSegura",
-    "slug": "TorrSegura",
+    "name": "TorreSegura",
+    "slug": "TorreSegura",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash-icon.png",

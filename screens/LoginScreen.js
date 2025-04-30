@@ -15,6 +15,8 @@ import { login } from "../services/authService";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 
+const ROLE_VIGILANTE = "Vigilante";
+const ROLE_RESIDENTE = "Residente"
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -24,21 +26,21 @@ export default function LoginScreen({ navigation }) {
 
   const { saveUser, user } = useUserContext();
 
-  useEffect(() => {
-    if (user && user.username && user.role) {
-      if (user.role === "Vigilante") {
-        navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-      } else {
-        navigation.reset({ index: 0, routes: [{ name: "Home" }] });
-      }
-    }
-  }, [user]);
+  // useEffect(() => {
+  //   if (user && user.username && user.role) {
+  //     if (user.role === "Vigilante") {
+  //       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  //     } else {
+  //       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  //     }
+  //   }
+  // }, [user]);
 
 
   const handleLogin = async () => {
     setErrorMsg("");
 
-    if (!username || !password) {
+    if (username.trim() === "" || password.trim() === "") {
       setErrorMsg("Completa ambos campos para iniciar sesión.");
       return;
     }
@@ -47,7 +49,10 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      const userData = await login(username, password);
+
+      const sanitizedUsername = username.trim().toLowerCase();
+      const userData = await login(sanitizedUsername, password);
+
 
       await saveUser({
         username: userData.username,
@@ -56,10 +61,12 @@ export default function LoginScreen({ navigation }) {
         token: userData.token,
       });
 
-      if (userData.rol.nombre === "Vigilante") {
-        navigation.navigate("Visitantes");
-      } else if (userData.rol.nombre === "Residente") {
-        navigation.navigate("Home");
+      if (userData.rol.nombre === ROLE_VIGILANTE) {
+        navigation.replace("Visitantes");
+        return;
+      } else if (userData.rol.nombre === ROLE_RESIDENTE) {
+        navigation.replace("Home");
+        return;
       }
     } catch (error) {
       // console.error("Error en login:", error.message);
@@ -168,9 +175,9 @@ export default function LoginScreen({ navigation }) {
               </Text>
             </View>
           )}
-<TouchableOpacity
+          <TouchableOpacity
             onPress={() => { }}
-            style={{marginTop: -10 }}
+            style={{ marginTop: -10 }}
             activeOpacity={0.7}
           >
             <Text
@@ -178,7 +185,8 @@ export default function LoginScreen({ navigation }) {
                 color: "#FFFFF",
                 fontSize: 14,
                 textDecorationLine: "underline",
-                fontWeight: "500"
+                fontWeight: "500",
+                marginTop: 15,
               }}
             >
               ¿Olvidaste tu contraseña?
