@@ -17,6 +17,7 @@ import { COLORS, SIZES } from "../constants";
 
 const ROLE_VIGILANTE = "Vigilante";
 const ROLE_RESIDENTE = "Residente"
+
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +25,8 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const { saveUser, user } = useUserContext();
+  // ✅ Cambio aquí: usar saveUserWithEmbeddedToken
+  const { saveUserWithEmbeddedToken, user } = useUserContext();
 
   // useEffect(() => {
   //   if (user && user.username && user.role) {
@@ -35,7 +37,6 @@ export default function LoginScreen({ navigation }) {
   //     }
   //   }
   // }, [user]);
-
 
   const handleLogin = async () => {
     setErrorMsg("");
@@ -49,17 +50,21 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-
       const sanitizedUsername = username.trim().toLowerCase();
       const userData = await login(sanitizedUsername, password);
 
+      console.log("Datos recibidos del authService:", userData);
 
-      await saveUser({
+      // ✅ Cambio aquí: usar saveUserWithEmbeddedToken en lugar de saveUser
+      await saveUserWithEmbeddedToken({
         username: userData.username,
         role: userData.rol.nombre,
         rol: userData.rol,
         token: userData.token,
+        vivienda_id: userData.vivienda_id,
       });
+
+      console.log("Usuario guardado exitosamente en contexto");
 
       if (userData.rol.nombre === ROLE_VIGILANTE) {
         navigation.replace("Visitantes");
@@ -69,7 +74,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
     } catch (error) {
-      // console.error("Error en login:", error.message);
+      console.error("Error en login:", error.message);
       setErrorMsg(error.message);
     } finally {
       setLoading(false);
@@ -226,6 +231,7 @@ export default function LoginScreen({ navigation }) {
     </ImageBackground>
   );
 }
+
 
 const styles = StyleSheet.create({
   background: {

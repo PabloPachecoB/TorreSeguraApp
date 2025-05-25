@@ -2,7 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "@env"
 
-const API_URL = `${API_BASE}/api/token/`;
+const API_URL = `${API_BASE}/usuarios/api/token/`;
 
 
 export const login = async (username, password) => {
@@ -32,8 +32,8 @@ export const login = async (username, password) => {
     await AsyncStorage.setItem("accessToken", accessToken);
     await AsyncStorage.setItem("refreshToken", refreshToken);
 
-    // ✅ Ahora obtenemos el perfil del usuario
-    const profileResponse = await fetch(`${API_BASE}/api/me/`, {
+    // Ahora obtenemos el perfil del usuario
+    const profileResponse = await fetch(`${API_BASE}/usuarios/api/me/`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -46,13 +46,14 @@ export const login = async (username, password) => {
     }
 
     const user = await profileResponse.json();
-
-    // ✅ Retornamos todo lo que LoginScreen necesita
+    
+    //  Retornamos todo lo que LoginScreen necesita
     return {
       username: user.username,
       rol: user.rol, // 👈 esto incluye .nombre, .descripcion, etc.
       token: accessToken,
       refresh: refreshToken,
+      vivienda_id: user.vivienda_id  // ✅ AÑADIR ESTO
     };
   } catch (error) {
     // console.error("Login error:", error.message);

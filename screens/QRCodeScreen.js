@@ -1,4 +1,3 @@
-// screens/QRCodeScreen.js
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -15,17 +14,91 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS, SIZES } from "../constants";
 import { useUserContext } from "../context/UserContext";
+import { API_BASE } from "@env";
 
 export default function QRCodeScreen({ navigation }) {
-  const { user } = useUserContext();
+  const { user, token } = useUserContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [visitorData, setVisitorData] = useState(null);
-  const [isValidQR, setIsValidQR] = useState(true); // Nuevo estado para validar el QR
+  const [isValidQR, setIsValidQR] = useState(true);
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const isProcessingRef = useRef(false); // Referencia para evitar múltiples escaneos
+  const isProcessingRef = useRef(false);
 
-  // Guardar una notificación en AsyncStorage
+  const verifyQRWithBackend = async (qrData) => {
+    try {
+      console.log("Token usado:", token);
+      console.log("API_BASE:", API_BASE);
+      
+      const response = await fetch(`${API_BASE}/accesos/api/visitas/verificar_qr/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: qrData.id, firma: qrData.firma }),
+      });
+
+      const data = await response.json();
+      console.log("Status de respuesta:", response.status);
+      console.log("Respuesta del backend:", data);
+
+      // Verificar si el token es inválido
+      if (response.status === 401 || data.code === "token_not_valid") {
+        Alert.alert(
+          "Sesión expirada", 
+          "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Aquí puedes redirigir al login o limpiar el contexto
+                navigation.navigate('Login'); // Ajusta según tu navegación
+              }
+            }
+          ]
+        );
+        setVisitorData(null);
+        setIsValidQR(false);
+        isProcessingRef.current = false;
+        return;
+      }
+
+      if (!response.ok || !data.valido) {
+        console.log("QR inválido:", data.mensaje);
+        setVisitorData(null);
+        setIsValidQR(false);
+        isProcessingRef.current = false;
+        return;
+      }
+
+      // QR válido, guardar todos los datos
+      const completeVisitorData = {
+        id: qrData.id,
+        firma: qrData.firma,
+        visitante: data.visitante,
+        documento: data.documento,
+        vivienda: data.vivienda,
+        fecha: data.fecha,
+        motivo: data.motivo,
+        autorizado_por: data.autorizado_por,
+        status: "Verificado"
+      };
+
+      setVisitorData(completeVisitorData);
+      setIsValidQR(true);
+      isProcessingRef.current = false;
+      
+      console.log("Datos completos del visitante:", completeVisitorData);
+    } catch (error) {
+      console.error("Error al verificar QR:", error);
+      Alert.alert("Error de conexión", "No se pudo conectar con el servidor.");
+      setVisitorData(null);
+      setIsValidQR(false);
+      isProcessingRef.current = false;
+    }
+  };
+
   const saveNotification = async (message) => {
     try {
       const storedNotifications = await AsyncStorage.getItem("notifications");
@@ -41,78 +114,53 @@ export default function QRCodeScreen({ navigation }) {
     }
   };
 
-  // Registrar la entrada del visitante
   const handleRegisterEntry = async () => {
     try {
-      // Enviar solicitud al backend para registrar la entrada
-      const response = await fetch(`https://tu-backend/api/visitantes/register-entry`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          // "Authorization": `Bearer ${user.token}`, // Descomenta y usa el token real cuando integres
-        },
-        body: JSON.stringify({ ...visitorData, status: "scanned" }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error al registrar la entrada");
-      }
-
-      saveNotification(`Visitante ${visitorData.name} ha ingresado.`);
-      Alert.alert("Éxito", "Entrada registrada correctamente.");
-      setScanned(false);
-      setVisitorData(null);
-      setIsValidQR(true); // Reinicia la validación
-      isProcessingRef.current = false; // Reinicia el estado de procesamiento
+      saveNotification(`Visitante ${visitorData.visitante} verificado.`);
+      Alert.alert("Éxito", `Entrada registrada para ${visitorData.visitante}`);
+      
+      // Actualizar el status
+      setVisitorData(prev => ({
+        ...prev,
+        status: "Entrada Registrada"
+      }));
     } catch (error) {
       console.error("Error al registrar entrada:", error);
-      saveNotification(`Visitante ${visitorData.name} ha ingresado.`);
-      Alert.alert("Éxito", "Entrada registrada correctamente (simulado).");
-      setScanned(false);
-      setVisitorData(null);
-      setIsValidQR(true); // Reinicia la validación
-      isProcessingRef.current = false; // Reinicia el estado de procesamiento
+      Alert.alert("Error", "No se pudo registrar la entrada.");
     }
   };
 
-  // Validar si el QR pertenece a TorreSegura
-  const validateQRData = (data) => {
-    const requiredFields = ["name", "document", "purpose", "departmentNumber", "whoAuthorizes", "status"];
-    return requiredFields.every((field) => field in data);
-  };
-
-  // Manejar el escaneo del código QR
   const handleBarCodeScanned = ({ type, data }) => {
-    if (isProcessingRef.current || scanned) return; // Evita procesar más escaneos si ya se escaneó un QR
-    isProcessingRef.current = true; // Marca que estamos procesando un escaneo
+    if (isProcessingRef.current || scanned) return;
+    isProcessingRef.current = true;
     console.log("Código QR escaneado:", { type, data });
     setScanned(true);
     try {
       const parsedData = JSON.parse(data);
       console.log("Datos parseados:", parsedData);
-      if (validateQRData(parsedData)) {
-        setVisitorData(parsedData);
-        setIsValidQR(true);
+      if (parsedData.id && parsedData.firma) {
+        // Inmediatamente verificar el QR con el backend
+        verifyQRWithBackend(parsedData);
       } else {
         setVisitorData(null);
         setIsValidQR(false);
+        isProcessingRef.current = false;
       }
     } catch (error) {
-      console.error("Error al parsear datos del QR:", error);
+      // console.error("Error al parsear datos del QR:", error);
       setVisitorData(null);
       setIsValidQR(false);
+      isProcessingRef.current = false;
     }
   };
 
-  // Alternar el flash
   const toggleTorch = () => {
     setTorchEnabled((prev) => !prev);
   };
 
-  // Reiniciar el estado de procesamiento cuando se cambia el estado de scanned
   useEffect(() => {
     if (!scanned) {
-      isProcessingRef.current = false; // Reinicia el estado de procesamiento cuando se permite un nuevo escaneo
+      isProcessingRef.current = false;
     }
   }, [scanned]);
 
@@ -152,21 +200,36 @@ export default function QRCodeScreen({ navigation }) {
           barcodeScannerSettings={{
             barcodeTypes: ["qr"],
           }}
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned} // Desactiva el escaneo cuando scanned es true
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           enableTorch={torchEnabled}
-          isActive={!scanned} // Desactiva el componente cuando scanned es true
+          isActive={!scanned}
         />
         {scanned ? (
           <View style={styles.resultContainer}>
             {visitorData && isValidQR ? (
               <View style={styles.resultInner}>
                 <Text style={styles.resultTitle}>Información del Visitante</Text>
-                <Text style={styles.resultText}>Nombre: {visitorData.name}</Text>
-                <Text style={styles.resultText}>Carnet de identidad: {visitorData.document}</Text>
-                <Text style={styles.resultText}>Motivo de la visita: {visitorData.purpose}</Text>
-                <Text style={styles.resultText}>Departamento: {visitorData.departmentNumber}</Text>
-                <Text style={styles.resultText}>Autorizado por: {visitorData.whoAuthorizes}</Text>
-                <Text style={styles.resultText}>Estado: {visitorData.status}</Text>
+                <Text style={styles.resultText}>
+                  Nombre: {visitorData.visitante || "No disponible"}
+                </Text>
+                <Text style={styles.resultText}>
+                  Carnet de identidad: {visitorData.documento || "No disponible"}
+                </Text>
+                <Text style={styles.resultText}>
+                  Motivo de la visita: {visitorData.motivo || "No disponible"}
+                </Text>
+                <Text style={styles.resultText}>
+                  Departamento: {visitorData.vivienda || "No disponible"}
+                </Text>
+                <Text style={styles.resultText}>
+                  Autorizado por: {visitorData.autorizado_por || "No disponible"}
+                </Text>
+                <Text style={styles.resultText}>
+                  Fecha: {visitorData.fecha || "No disponible"}
+                </Text>
+                {visitorData.status && (
+                  <Text style={styles.resultText}>Estado: {visitorData.status}</Text>
+                )}
                 <TouchableOpacity style={styles.registerButton} onPress={handleRegisterEntry}>
                   <Text style={styles.registerButtonText}>Registrar Entrada</Text>
                 </TouchableOpacity>
@@ -291,6 +354,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
     alignItems: "center",
+    maxWidth: "90%",
   },
   resultTitle: {
     fontSize: SIZES.fontSizeSubtitle,
@@ -298,12 +362,15 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: COLORS.black,
     marginBottom: 10,
+    textAlign: "center",
   },
   resultText: {
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Regular",
     color: COLORS.black,
     marginBottom: 5,
+    textAlign: "left",
+    width: "100%",
   },
   errorContainer: {
     backgroundColor: COLORS.white,
@@ -350,6 +417,21 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Bold",
+    fontWeight: "bold",
+  },
+  message: {
+    textAlign: "center",
+    paddingBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    padding: 15,
+    borderRadius: 5,
+    marginHorizontal: 20,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    textAlign: "center",
     fontWeight: "bold",
   },
 });

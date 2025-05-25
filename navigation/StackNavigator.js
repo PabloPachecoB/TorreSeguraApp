@@ -13,7 +13,7 @@ import AlertScreen from "../screens/AlertaScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import ListaTotalScreen from '../screens/ListaTotalScreen'
 import WelcomeScreen from "../screens/WelcomeScreen";
-
+import VisitRequestScreen from '../screens/VisitRequestScreen'; 
 
 
 const Stack = createStackNavigator();
@@ -33,6 +33,7 @@ export default function StackNavigator() {
       <Stack.Screen name="AlertScreen" component={AlertScreen} options={{headerShown: false}} />
       <Stack.Screen name="PaymentScreen" component={PaymentScreen} options={{headerShown: false}}/>
       <Stack.Screen name="ListaTotalScreen" component={ListaTotalScreen} options={{headerShown: false}}/>
+      <Stack.Screen name="VisitRequest" component={VisitRequestScreen} options={{headerShown: false}} />
       </Stack.Navigator>
   );
 }
