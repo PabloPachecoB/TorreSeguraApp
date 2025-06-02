@@ -4,9 +4,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 
 export default function BottomNav({ navigation, role, username }) {
   const { selectedTab, setSelectedTab } = useNavigationContext();
+  const insets = useSafeAreaInsets();
 
   const handleHomeTab = () => {
     setSelectedTab("home");
@@ -19,7 +22,7 @@ export default function BottomNav({ navigation, role, username }) {
   };
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, {paddingBottom: insets.bottom}]}>
       <TouchableOpacity
         style={[
           styles.navButton,
@@ -76,7 +79,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderTopWidth: 2,
     borderTopColor: COLORS.border,
-   position: "absolute",
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,

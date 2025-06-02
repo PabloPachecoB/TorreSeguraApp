@@ -7,7 +7,7 @@ import StackNavigator from "./navigation/StackNavigator";
 import * as SplashScreen from "expo-splash-screen";
 import { useState, useEffect } from "react";
 import { loadFonts } from "./hooks/useFonts";
-
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,13 +33,15 @@ export default function App() {
   }
 
   return (
-    <UserProvider>
-      <NavigationProvider>
-        <NavigationContainer>
-          <StackNavigator />
-          <StatusBar style="auto" />
-        </NavigationContainer>
-      </NavigationProvider>
-    </UserProvider>
+    <SafeAreaProvider>
+      <UserProvider>
+        <NavigationProvider>
+          <NavigationContainer>
+            <StackNavigator />
+            <StatusBar style="auto" />
+          </NavigationContainer>
+        </NavigationProvider>
+      </UserProvider>
+    </SafeAreaProvider>
   );
 }

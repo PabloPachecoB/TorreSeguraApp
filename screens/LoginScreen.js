@@ -1,3 +1,4 @@
+// screens/LoginScreen.js
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import { COLORS, SIZES } from "../constants";
 
 const ROLE_VIGILANTE = "Vigilante";
 const ROLE_RESIDENTE = "Residente"
+
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,57 +25,19 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const { saveUser, user } = useUserContext();
-useEffect(() => {
-  const tryBiometricLogin = async () => {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+  // ✅ Cambio aquí: usar saveUserWithEmbeddedToken
+  const { saveUserWithEmbeddedToken, user } = useUserContext();
 
-    if (!hasHardware || !isEnrolled) {
-      setCheckingBiometrics(false);
-      return;
-    }
+  // useEffect(() => {
+  //   if (user && user.username && user.role) {
+  //     if (user.role === "Vigilante") {
+  //       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  //     } else {
+  //       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  //     }
+  //   }
+  // }, [user]);
 
-    const result = await Promise.race([
-      LocalAuthentication.authenticateAsync({
-        promptMessage: 'Autenticación facial',
-        fallbackLabel: 'Usar contraseña',
-        cancelLabel: 'Cancelar',
-      }),
-      new Promise(resolve => setTimeout(() => resolve({ success: false }), 10000))
-    ]);
-
-    if (result.success) {
-      try {
-        const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          await saveUser(parsedUser);
-
-          if (parsedUser.role === ROLE_VIGILANTE) {
-            navigation.replace("Visitantes");
-          } else if (parsedUser.role === ROLE_RESIDENTE) {
-            navigation.replace("Home");
-          } else {
-            setErrorMsg("Rol no válido.");
-          }
-          return;
-        } else {
-          setErrorMsg("No hay usuario guardado.");
-        }
-      } catch (e) {
-        setErrorMsg("Error al recuperar usuario guardado.");
-      }
-    }
-
-    setCheckingBiometrics(false); // Mostrar formulario manual si falla
-  };
-
-  tryBiometricLogin();
-}, []);
-
-
-  
   const handleLogin = async () => {
     setErrorMsg("");
 
@@ -86,17 +50,21 @@ useEffect(() => {
     setLoading(true);
 
     try {
-
       const sanitizedUsername = username.trim().toLowerCase();
       const userData = await login(sanitizedUsername, password);
 
+      console.log("Datos recibidos del authService:", userData);
 
-      await saveUser({
+      // ✅ Cambio aquí: usar saveUserWithEmbeddedToken en lugar de saveUser
+      await saveUserWithEmbeddedToken({
         username: userData.username,
         role: userData.rol.nombre,
         rol: userData.rol,
         token: userData.token,
+        vivienda_id: userData.vivienda_id,
       });
+
+      console.log("Usuario guardado exitosamente en contexto");
 
       if (userData.rol.nombre === ROLE_VIGILANTE) {
         navigation.replace("Visitantes");
@@ -156,7 +124,7 @@ useEffect(() => {
           >
             <Icon name="person-outline" size={20} color="#999" style={{ marginRight: 10 }} />
             <TextInput
-              placeholder="Usuario del sistema"
+              placeholder="Username"
               placeholderTextColor={COLORS.gray}
               style={styles.input}
               value={username}
@@ -264,6 +232,7 @@ useEffect(() => {
   );
 }
 
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -275,39 +244,38 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
-    backgroundColor: "rgba(0, 51, 102, 0.5)", // Fondo azul oscuro para seguridad
+    backgroundColor: "rgba(244, 200, 200, 0.43)",
   },
   logo: {
-    width: 140,
-    height: 140,
-    marginBottom: 25,
+    width: 120,
+    height: 120,
+    marginBottom: 20,
   },
   title: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeTitle,
-    fontFamily: "Roboto-Bold",
+    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
+    fontFamily: "Roboto-Bold", // Título principal
     fontWeight: "bold",
-    marginBottom: 25,
-    textAlign: "center",
+    marginBottom: 20,
   },
   inputContainer: {
     width: "100%",
-    marginBottom: 35,
+    marginBottom: 30,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2A2A2A", // Fondo oscuro para inputs
+    backgroundColor: "#333333",
     padding: 15,
     borderRadius: 12,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: "#4A4A4A",
+    borderColor: "#444",
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 5,
-    elevation: 3,
+    elevation: 2,
   },
   inputIcon: {
     marginRight: 10,
@@ -315,38 +283,38 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
   },
   submitButton: {
-    backgroundColor: "#00A300", // Verde oscuro para seguridad
+    backgroundColor: "#00FF00",
     padding: 15,
     borderRadius: 25,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 4,
+    elevation: 3,
   },
   submitButtonText: {
     textAlign: "center",
-    color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Bold",
+    color: COLORS.black,
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Bold", // Texto destacado
     fontWeight: "bold",
   },
   aboutUsButton: {
-    backgroundColor: "#1A3C66", // Azul oscuro para profesionalismo
-    paddingVertical: 12,
-    paddingHorizontal: 35,
+    backgroundColor: "#1A1A1A",
+    paddingVertical: 10,
+    paddingHorizontal: 30,
     borderRadius: 20,
-    marginBottom: 45,
+    marginBottom: 40,
   },
   aboutUsText: {
     textAlign: "center",
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
   },
   tabContainer: {
     flexDirection: "row",
@@ -364,12 +332,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   activeTab: {
-    backgroundColor: "#00A300", // Verde para pestaña activa
+    backgroundColor: "#00FF00",
     borderTopLeftRadius: 25,
     borderBottomLeftRadius: 25,
   },
   inactiveTab: {
-    backgroundColor: "#1A3C66", // Azul oscuro para pestaña inactiva
+    backgroundColor: "#003366",
     borderTopRightRadius: 25,
     borderBottomRightRadius: 25,
   },
@@ -378,8 +346,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
+    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
+    fontFamily: "Roboto-Regular", // Texto normal
     fontWeight: "bold",
   },
 });

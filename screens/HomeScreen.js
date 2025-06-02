@@ -54,6 +54,10 @@ export default function HomeScreen({ navigation }) {
       case "Mis Visitantes":
         navigation.navigate("Visitantes", { role });
         break;
+      case "Solicitudes":
+      navigation.navigate("VisitRequest");
+        break;
+
       case "Áreas Comunes":
         navigation.navigate("AreasComunes");
         break;
