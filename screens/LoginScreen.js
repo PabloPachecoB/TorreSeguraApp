@@ -74,7 +74,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
     } catch (error) {
-      console.error("Error en login:", error.message);
+      // console.error("Error en login:", error.message);
       setErrorMsg(error.message);
     } finally {
       setLoading(false);
