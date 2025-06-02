@@ -8,18 +8,26 @@ import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 import { getMenuByRole } from "../services/menuService";
 import MainLayout from "../components/MainLayout";
+import IconButton from "../components/IconButton";
+import { NotificationIcon, LogoutIcon } from "../components/Icons";
+import CustomAlert from "../components/CustomAlert";
+
 
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useUserContext();
-  const { selectedTab } = useNavigationContext();
+  const { selectedTab, setSelectedTab } = useNavigationContext();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertSuccess, setAlertSuccess] = useState(true);
+  const [alertMessage, setAlertMessage] = useState("");
   const username = user?.username || "Usuario";
-  const role = user?.role || "Rol";
+  const role = user?.role || user?.rol?.nombre || "Rol";
 
   useEffect(() => {
+    if (!role) return;
+
     const fetchMenu = async () => {
       setLoading(true);
       setError(null);
@@ -32,8 +40,10 @@ export default function HomeScreen({ navigation }) {
         setLoading(false);
       }
     };
+
     fetchMenu();
   }, [role]);
+
 
   const handleCardPress = useCallback((title) => {
     switch (title) {
@@ -73,15 +83,29 @@ export default function HomeScreen({ navigation }) {
     }
   }, [navigation, role]);
 
-  const handleLogout = useCallback (() => {
-    logout();
-    navigation.replace("Login");
-  }, [logout, navigation]);
+  const handleLogout = useCallback (async () => {
+    try {
+      await logout();
+      setAlertSuccess(true);
+      setAlertMessage("Sesión cerrada correctamente.");
+      setAlertVisible(true);
 
-  if (!user || !user.username || !user.role) {
-    navigation.replace("Login");
-    return null;
-  }
+    } catch (error) {
+      setAlertSuccess(false);
+      setAlertMessage("No se pudo cerrar sesión.");
+      setAlertVisible(true);
+    }
+  }, [logout]);
+
+
+  useEffect(() => {
+    if (alertVisible) return;
+    if (!user || !user.username || !(user.role || user.rol?.nombre)) {
+      console.log("Usuario no válido, redirigiendo a Login...");
+      navigation.replace("Login");
+    }
+  }, [user, alertVisible]);
+
 
   if (loading) {
     return (
@@ -113,17 +137,23 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-            <Icon name="notifications-outline" size={SIZES.iconSize} color={COLORS.black} style={styles.icon} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <Icon name="log-out-outline" size={SIZES.iconSize} color={COLORS.black} />
-          </TouchableOpacity>
+          <IconButton onPress={() => {
+            setSelectedTab("notifications");
+            navigation.navigate("Notifications");
+          }}>
+            <NotificationIcon size={30} color={COLORS.black} />
+          </IconButton>
+
+
+          <IconButton onPress={handleLogout}>
+            <LogoutIcon size={35} color={COLORS.black} />
+          </IconButton>
         </View>
+
       </View>
       <View style={styles.content}>
         <View style={styles.cardsContainer}>
-          {menuItems.map((item, index) => (
+          {menuItems && Array.isArray(menuItems) && menuItems.map((item, index) => (
             <Card
               key={index}
               title={item.title}
@@ -134,7 +164,22 @@ export default function HomeScreen({ navigation }) {
             />
           ))}
         </View>
+        <CustomAlert
+          visible={alertVisible}
+          success={alertSuccess}
+          message={alertMessage}
+          primaryButtonText="Aceptar"
+          onPrimaryPress={() => {
+            setAlertVisible(false);
+            if (alertSuccess) {
+              navigation.replace("Login");
+            }
+          }}
+        />
+
+
       </View>
+
     </MainLayout>
   );
 }
@@ -146,6 +191,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: SIZES.padding,
     paddingVertical: 15,
+    marginTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -156,6 +202,7 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 25,
   },
   headerText: {
     marginLeft: 10,

@@ -32,7 +32,7 @@ export default function InvitationScreen({ navigation }) {
 
   // Validar que el usuario sea propietario
   useEffect(() => {
-    if (user?.role !== "propietario") {
+    if (user?.role !== "Residente") {
       Alert.alert("Acceso denegado", "Esta funcionalidad es solo para propietarios.");
       navigation.replace("Home");
     }

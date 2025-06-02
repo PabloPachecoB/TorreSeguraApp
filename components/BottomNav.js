@@ -74,9 +74,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.white,
     paddingVertical: 15,
-    borderTopWidth: 1,
+    borderTopWidth: 2,
     borderTopColor: COLORS.border,
-    position: "absolute",
+   position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     borderRadius: SIZES.borderRadius,
+    marginHorizontal: 10
   },
   navText: {
     fontSize: SIZES.fontSizeSmall,

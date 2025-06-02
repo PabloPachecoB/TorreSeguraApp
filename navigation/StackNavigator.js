@@ -12,7 +12,7 @@ import InvitationScreen from "../screens/InvitationScreen";
 import AlertScreen from "../screens/AlertaScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import ListaTotalScreen from '../screens/ListaTotalScreen'
-
+import WelcomeScreen from "../screens/WelcomeScreen";
 
 
 
@@ -20,7 +20,8 @@ const Stack = createStackNavigator();
 
 export default function StackNavigator() {
   return (
-    <Stack.Navigator initialRouteName="Login">
+    <Stack.Navigator initialRouteName="Welcome">
+      <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="AreasComunes" component={AreasComunesScreen} options={{ headerShown: false }} />

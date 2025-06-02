@@ -7,72 +7,110 @@ import {
   Image,
   StyleSheet,
 } from "react-native";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import Icon from "react-native-vector-icons/Ionicons";
 import { login } from "../services/authService";
 import { useUserContext } from "../context/UserContext";
-import { users } from "../utils/users";
 import { COLORS, SIZES } from "../constants";
 
+const ROLE_VIGILANTE = "Vigilante";
+const ROLE_RESIDENTE = "Residente"
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true);
-  const [selectedTab, setSelectedTab] = useState("login");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const { saveUser, user } = useUserContext();
+useEffect(() => {
+  const tryBiometricLogin = async () => {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-  useEffect(() => {
-    if (user) {
-      navigation.navigate("Home");
-    }
-  }, [user, navigation]);
-
-  const handleLogin = useCallback(async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const userData = await login(username, password);
-      await saveUser({
-        username: userData.username,
-        role: userData.role,
-        token: userData.token,
-      });
-      navigation.navigate("Home");
-    } catch (error) {
-      alert(error.message || "Error al iniciar sesión. Verifica tus credenciales o la conexión.");
-    } finally {
-      setLoading(false);
-    }
-  }, [username, password, loading, saveUser, navigation]);
-
-  const handleLoginTab = () => {
-    setSelectedTab("login");
-    setUsername("");
-    setPassword("");
-  };
-
-  const handleForgotPassword = () => {
-    setSelectedTab("forgot");
-  };
-
-  const handleRecoverPassword = () => {
-    if (!username) {
-      alert("Por favor, ingresa tu usuario del sistema de seguridad.");
+    if (!hasHardware || !isEnrolled) {
+      setCheckingBiometrics(false);
       return;
     }
 
-    const user = users.find((u) => u.username === username);
-    if (user) {
-      alert(`Tu contraseña es: ${user.password}`);
-    } else {
-      alert("Usuario no encontrado. Verifica tu usuario del sistema.");
+    const result = await Promise.race([
+      LocalAuthentication.authenticateAsync({
+        promptMessage: 'Autenticación facial',
+        fallbackLabel: 'Usar contraseña',
+        cancelLabel: 'Cancelar',
+      }),
+      new Promise(resolve => setTimeout(() => resolve({ success: false }), 10000))
+    ]);
+
+    if (result.success) {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          await saveUser(parsedUser);
+
+          if (parsedUser.role === ROLE_VIGILANTE) {
+            navigation.replace("Visitantes");
+          } else if (parsedUser.role === ROLE_RESIDENTE) {
+            navigation.replace("Home");
+          } else {
+            setErrorMsg("Rol no válido.");
+          }
+          return;
+        } else {
+          setErrorMsg("No hay usuario guardado.");
+        }
+      } catch (e) {
+        setErrorMsg("Error al recuperar usuario guardado.");
+      }
     }
+
+    setCheckingBiometrics(false); // Mostrar formulario manual si falla
   };
 
-  const handleAboutUs = () => {
-    alert("Torre Segura: Sistema de gestión de seguridad para condominios.");
+  tryBiometricLogin();
+}, []);
+
+
+  
+  const handleLogin = async () => {
+    setErrorMsg("");
+
+    if (username.trim() === "" || password.trim() === "") {
+      setErrorMsg("Completa ambos campos para iniciar sesión.");
+      return;
+    }
+
+    if (loading) return;
+    setLoading(true);
+
+    try {
+
+      const sanitizedUsername = username.trim().toLowerCase();
+      const userData = await login(sanitizedUsername, password);
+
+
+      await saveUser({
+        username: userData.username,
+        role: userData.rol.nombre,
+        rol: userData.rol,
+        token: userData.token,
+      });
+
+      if (userData.rol.nombre === ROLE_VIGILANTE) {
+        navigation.replace("Visitantes");
+        return;
+      } else if (userData.rol.nombre === ROLE_RESIDENTE) {
+        navigation.replace("Home");
+        return;
+      }
+    } catch (error) {
+      // console.error("Error en login:", error.message);
+      setErrorMsg(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -88,12 +126,35 @@ export default function LoginScreen({ navigation }) {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.title}>
-          {selectedTab === "forgot" ? "RECUPERAR CONTRASEÑA" : "ACCESO A TORRE SEGURA"}
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 26,
+            fontWeight: "bold",
+            marginBottom: 20,
+          }}
+        >
+          BIENVENIDO A TORRE SEGURA
         </Text>
-        <View style={styles.inputContainer}>
-          <View style={styles.inputWrapper}>
-            <Icon name="person-outline" size={20} color={COLORS.gray} style={styles.inputIcon} />
+        <View style={{ width: "100%", marginBottom: 10 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#333333",
+              padding: 15,
+              borderRadius: 12,
+              marginBottom: 15,
+              borderWidth: 1,
+              borderColor: "#444",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 5,
+              elevation: 2,
+            }}
+          >
+            <Icon name="person-outline" size={20} color="#999" style={{ marginRight: 10 }} />
             <TextInput
               placeholder="Usuario del sistema"
               placeholderTextColor={COLORS.gray}
@@ -103,61 +164,99 @@ export default function LoginScreen({ navigation }) {
               editable={!loading}
             />
           </View>
-          {selectedTab === "login" && (
-            <View style={styles.inputWrapper}>
-              <Icon name="lock-closed-outline" size={20} color={COLORS.gray} style={styles.inputIcon} />
-              <TextInput
-                placeholder="Contraseña"
-                placeholderTextColor={COLORS.gray}
-                secureTextEntry={secureText}
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading}
-              />
-              <TouchableOpacity onPress={() => setSecureText(!secureText)}>
-                <Icon
-                  name={secureText ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={COLORS.gray}
-                />
-              </TouchableOpacity>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#333333",
+              padding: 15,
+              borderRadius: 12,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: "#444",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 5,
+              elevation: 2,
+            }}
+          >
+            <Icon name="lock-closed-outline" size={20} color="#999" style={{ marginRight: 10 }} />
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#999"
+              secureTextEntry={secureText}
+              style={{ flex: 1, color: "#FFF" }}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+              <Icon name={secureText ? "eye-off-outline" : "eye-outline"} size={20} color="#999" />
+            </TouchableOpacity>
+          </View>
+
+          {errorMsg.length > 0 && (
+            <View
+              style={{
+                backgroundColor: "#ed6464",
+                borderColor: "#b02a2a",
+                borderWidth: 1.5,
+                padding: 10,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "600" }}>
+                {errorMsg}
+              </Text>
             </View>
           )}
           <TouchableOpacity
-            style={[styles.submitButton, { opacity: loading ? 0.6 : 1 }]}
+            onPress={() => { }}
+            style={{ marginTop: -10 }}
             activeOpacity={0.7}
-            onPress={selectedTab === "forgot" ? handleRecoverPassword : handleLogin}
-            disabled={loading}
           >
-            <Text style={styles.submitButtonText}>
-              {loading ? "CARGANDO..." : selectedTab === "forgot" ? "RECUPERAR" : "INGRESAR"}
+            <Text
+              style={{
+                color: "#FFFFF",
+                fontSize: 14,
+                textDecorationLine: "underline",
+                fontWeight: "500",
+                marginTop: 15,
+              }}
+            >
+              ¿Olvidaste tu contraseña?
             </Text>
           </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={styles.aboutUsButton} onPress={handleAboutUs}>
-          <Text style={styles.aboutUsText}>Sobre Torre Segura</Text>
-        </TouchableOpacity>
-        <View style={styles.tabContainer}>
+
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === "login" ? styles.activeTab : styles.inactiveTab,
-            ]}
-            onPress={handleLoginTab}
+            style={{
+              backgroundColor: "#00FF00",
+              padding: 15,
+              borderRadius: 25,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 5,
+              elevation: 3,
+              opacity: loading ? 0.6 : 1,
+              marginTop: 20,
+            }}
+            activeOpacity={0.7}
+            onPress={handleLogin}
+            disabled={loading}
           >
-            <Icon name="person-outline" size={20} color={COLORS.white} style={styles.tabIcon} />
-            <Text style={styles.tabText}>Iniciar Sesión</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === "forgot" ? styles.activeTab : styles.inactiveTab,
-            ]}
-            onPress={handleForgotPassword}
-          >
-            <Icon name="lock-closed-outline" size={20} color={COLORS.white} style={styles.tabIcon} />
-            <Text style={styles.tabText}>Recuperar Contraseña</Text>
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#000",
+                fontSize: 18,
+                fontWeight: "bold",
+              }}
+            >
+              {loading ? "CARGANDO..." : "INICIAR SESIÓN"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
