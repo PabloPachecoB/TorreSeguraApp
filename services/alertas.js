@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.X:8000/api/alertas/';  // 🔁 Reemplaza con la IP real de tu servidor Django
+const API_URL = 'http://192.168.0.13:8000/api/alertas/';  // 🔁 Reemplaza con la IP real de tu servidor Django
 
 export const enviarAlerta = async (titulo, descripcion, tipo) => {
   try {
@@ -16,3 +16,5 @@ export const enviarAlerta = async (titulo, descripcion, tipo) => {
     throw error;
   }
 };
+
+

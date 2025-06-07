@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,17 +8,135 @@ import {
   SafeAreaView,
   TextInput,
   Modal,
-  Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
-import { useUserContext } from "../context/UserContext"; // Added to get user
+import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 
+// Servicio para manejar las alertas
+// Servicio para manejar las alertas
+class AlertasService {
+  static BASE_URL = "http://192.168.0.13:8000";
+
+  static async getAuthToken() {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      console.log("Token retrieved:", token ? "Found" : "Not found");
+      console.log("Token type:", typeof token);
+      console.log("Token length:", token ? token.length : 0);
+      console.log("=============================");
+      return token;
+    } catch (error) {
+      console.error("Error getting auth token:", error);
+      return null;
+    }
+  }
+
+  static async getAuthHeaders() {
+    const token = await this.getAuthToken();
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    };
+    
+    console.log("Headers being sent:", headers);
+    return headers;
+  }
+
+  static async crearAlerta(alertaData) {
+    try {
+      console.log("🚀 Intentando crear alerta...");
+      console.log("Datos:", alertaData);
+      
+      const headers = await this.getAuthHeaders();
+      const url = `${this.BASE_URL}/api/api/alertas/crear/`;
+      console.log("URL:", url);
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(alertaData),
+      });
+
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.log("Error response text:", responseText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { detail: responseText };
+        }
+        
+        throw new Error(errorData.detail || `Método "${response.status === 405 ? 'POST' : 'HTTP'}" no permitido.`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error creating alerta:", error);
+      throw error;
+    }
+  }
+
+  static async obtenerMisAlertas() {
+    try {
+      console.log("📱 Intentando obtener mis alertas...");
+      
+      const headers = await this.getAuthHeaders();
+      const url = `${this.BASE_URL}/api/api/alertas/mis-alertas/`;
+      console.log("URL:", url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.log("Error response text:", responseText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Mis alertas recibidas:", data.length || 0, "alertas");
+      return data;
+    } catch (error) {
+      console.error("Error fetching mis alertas:", error);
+      throw error;
+    }
+  }
+
+  static async obtenerTodasLasAlertas() {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.BASE_URL}/api/api/alertas/`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching todas las alertas:", error);
+      throw error;
+    }
+  }
+}
 const alertTypes = [
   { id: "1", title: "Incendio", icon: "flame-outline", color: COLORS.error },
   { id: "2", title: "Sismo", icon: "earth-outline", color: COLORS.gray },
@@ -30,12 +148,40 @@ const alertTypes = [
 
 export default function AlertScreen({ navigation }) {
   const { selectedTab } = useNavigationContext();
-  const { user } = useUserContext(); // Get logged-in user
+  const { user } = useUserContext();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [alertasEnviadas, setAlertasEnviadas] = useState([]);
+  const [showMisAlertas, setShowMisAlertas] = useState(false);
 
-  // Guardar una notificación en AsyncStorage
+  // Cargar alertas del usuario al iniciar
+  useEffect(() => {
+  // 🔍 Debug temporal para verificar token
+  const checkToken = async () => {
+    const token = await AsyncStorage.getItem("accessToken");
+    console.log("🔍 Token actual:", token);
+    console.log("🔍 Token existe:", !!token);
+    if (token) {
+      console.log("🔍 Primeros 20 caracteres:", token.substring(0, 20) + "...");
+      console.log("🔍 Últimos 20 caracteres:", "..." + token.substring(token.length - 20));
+    }
+  };
+  
+  checkToken();
+  cargarMisAlertas();
+}, []);
+  const cargarMisAlertas = async () => {
+    try {
+      const alertas = await AlertasService.obtenerMisAlertas();
+      setAlertasEnviadas(alertas);
+    } catch (error) {
+      console.error("Error al cargar mis alertas:", error);
+    }
+  };
+
+  // Guardar notificación local
   const saveNotification = async (message) => {
     try {
       const storedNotifications = await AsyncStorage.getItem("notifications");
@@ -62,51 +208,37 @@ export default function AlertScreen({ navigation }) {
       return;
     }
 
-    const alertDetails = {
-      type: selectedAlert.title,
-      description,
-      username: user?.username || "Usuario desconocido",
+    setLoading(true);
+
+    const alertaData = {
+      tipo: selectedAlert.title,
+      descripcion: description,
     };
 
-    // Log alert details to terminal
-    console.log("Alerta enviada:", {
-      tipo: alertDetails.type,
-      descripción: alertDetails.description,
-      enviado_por: alertDetails.username,
-      fecha: new Date().toISOString(),
-    });
-
     try {
-      // Enviar solicitud al backend para registrar la alerta
-      const response = await fetch("https://tu-backend/api/alerts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // "Authorization": `Bearer ${user?.token}`, // Descomenta cuando integres el token
-        },
-        body: JSON.stringify({
-          type: selectedAlert.title,
-          description,
-          username: user?.username,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
-      }
-
-      saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
+      const nuevaAlerta = await AlertasService.crearAlerta(alertaData);
+      
+      // Guardar notificación local
+      await saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
+      
+      // Actualizar lista de mis alertas
+      await cargarMisAlertas();
+      
       Alert.alert("Éxito", "Alerta enviada correctamente.");
-      setModalVisible(false);
-      setDescription("");
-      setSelectedAlert(null);
+      handleCloseModal();
+      
     } catch (error) {
-      console.error("Error al enviar alerta:", error.message);
-      saveNotification(`Alerta enviada (simulada): ${selectedAlert.title} - ${description}`);
-      Alert.alert("Éxito", "Alerta enviada correctamente (simulada).");
-      setModalVisible(false);
-      setDescription("");
-      setSelectedAlert(null);
+      console.error("Error al enviar alerta:", error);
+      
+      // Modo fallback - guardar como simulada
+      await saveNotification(`Alerta enviada (simulada): ${selectedAlert.title} - ${description}`);
+      Alert.alert(
+        "Error de conexión", 
+        "No se pudo conectar al servidor, pero tu alerta ha sido guardada localmente."
+      );
+      handleCloseModal();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,6 +246,24 @@ export default function AlertScreen({ navigation }) {
     setModalVisible(false);
     setDescription("");
     setSelectedAlert(null);
+  };
+
+  const getEstadoColor = (estado) => {
+    switch (estado) {
+      case 'pendiente': return COLORS.error;
+      case 'en_proceso': return COLORS.secondary;
+      case 'resuelto': return COLORS.success;
+      default: return COLORS.gray;
+    }
+  };
+
+  const getEstadoTexto = (estado) => {
+    switch (estado) {
+      case 'pendiente': return 'Pendiente';
+      case 'en_proceso': return 'En Proceso';
+      case 'resuelto': return 'Resuelto';
+      default: return estado;
+    }
   };
 
   const renderAlert = ({ item }) => (
@@ -126,23 +276,88 @@ export default function AlertScreen({ navigation }) {
     </TouchableOpacity>
   );
 
+  const renderMiAlerta = ({ item }) => (
+    <View style={styles.alertaHistorial}>
+      <View style={styles.alertaHistorialHeader}>
+        <Text style={styles.alertaHistorialTipo}>{item.tipo}</Text>
+        <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado) }]}>
+          <Text style={styles.estadoTexto}>{getEstadoTexto(item.estado)}</Text>
+        </View>
+      </View>
+      <Text style={styles.alertaHistorialDescripcion}>{item.descripcion}</Text>
+      <Text style={styles.alertaHistorialFecha}>
+        {new Date(item.fecha).toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}
+      </Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+      
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-outline" size={30} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Alertas</Text>
-        <View style={{ width: 30 }} />
+        <TouchableOpacity onPress={() => setShowMisAlertas(!showMisAlertas)}>
+          <Icon name="list-outline" size={30} color={COLORS.black} />
+        </TouchableOpacity>
       </View>
-      <FlatList
-        data={alertTypes}
-        renderItem={renderAlert}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.alertList}
-      />
+
+      {/* Toggle entre tipos de alerta y mis alertas */}
+      <View style={styles.toggleContainer}>
+        <TouchableOpacity 
+          style={[styles.toggleButton, !showMisAlertas && styles.toggleButtonActive]}
+          onPress={() => setShowMisAlertas(false)}
+        >
+          <Text style={[styles.toggleText, !showMisAlertas && styles.toggleTextActive]}>
+            Enviar Alerta
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.toggleButton, showMisAlertas && styles.toggleButtonActive]}
+          onPress={() => setShowMisAlertas(true)}
+        >
+          <Text style={[styles.toggleText, showMisAlertas && styles.toggleTextActive]}>
+            Mis Alertas ({alertasEnviadas.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Contenido */}
+      {showMisAlertas ? (
+        <FlatList
+          data={alertasEnviadas}
+          renderItem={renderMiAlerta}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.alertList}
+          refreshing={loading}
+          onRefresh={cargarMisAlertas}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No has enviado alertas aún</Text>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          data={alertTypes}
+          renderItem={renderAlert}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.alertList}
+        />
+      )}
+
+      {/* Modal para enviar alerta */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -161,18 +376,32 @@ export default function AlertScreen({ navigation }) {
               value={description}
               onChangeText={setDescription}
               multiline
+              editable={!loading}
             />
             <View style={styles.modalButtonContainer}>
-              <TouchableOpacity style={styles.alertButton} onPress={handleSendAlert}>
-                <Text style={styles.alertButtonText}>Alertar</Text>
+              <TouchableOpacity 
+                style={[styles.alertButton, loading && styles.buttonDisabled]} 
+                onPress={handleSendAlert}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.alertButtonText}>Alertar</Text>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.backButton} onPress={handleCloseModal}>
+              <TouchableOpacity 
+                style={[styles.backButton, loading && styles.buttonDisabled]} 
+                onPress={handleCloseModal}
+                disabled={loading}
+              >
                 <Text style={styles.backButtonText}>Atrás</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
       <BottomNav selectedTab={selectedTab} navigation={navigation} />
     </SafeAreaView>
   );
@@ -197,6 +426,30 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     color: COLORS.black,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    margin: SIZES.padding,
+    borderRadius: SIZES.borderRadius,
+    padding: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: SIZES.borderRadius - 4,
+  },
+  toggleButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  toggleText: {
+    fontSize: SIZES.fontSizeBody,
+    color: COLORS.gray,
+    fontWeight: '600',
+  },
+  toggleTextActive: {
+    color: COLORS.white,
   },
   alertList: {
     padding: SIZES.padding,
@@ -223,6 +476,56 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     marginTop: 10,
     textAlign: "center",
+  },
+  alertaHistorial: {
+    backgroundColor: COLORS.white,
+    padding: 15,
+    borderRadius: SIZES.borderRadius,
+    marginBottom: 10,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  alertaHistorialHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  alertaHistorialTipo: {
+    fontSize: SIZES.fontSizeSubtitle,
+    fontWeight: 'bold',
+    color: COLORS.black,
+  },
+  estadoBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  estadoTexto: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  alertaHistorialDescripcion: {
+    fontSize: SIZES.fontSizeBody,
+    color: COLORS.gray,
+    marginBottom: 8,
+  },
+  alertaHistorialFecha: {
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    fontSize: SIZES.fontSizeBody,
+    color: COLORS.gray,
   },
   modalOverlay: {
     flex: 1,
@@ -289,5 +592,8 @@ const styles = StyleSheet.create({
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Bold",
     fontWeight: "bold",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
