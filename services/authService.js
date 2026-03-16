@@ -50,7 +50,7 @@ export const login = async (username, password) => {
     //  Retornamos todo lo que LoginScreen necesita
     return {
       username: user.username,
-      rol: user.rol, // 👈 esto incluye .nombre, .descripcion, etc.
+      rol: user.rol,
       token: accessToken,
       refresh: refreshToken,
       vivienda_id: user.vivienda_id  // ✅ AÑADIR ESTO
