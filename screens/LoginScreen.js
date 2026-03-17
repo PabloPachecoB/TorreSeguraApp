@@ -51,25 +51,32 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const sanitizedUsername = username.trim().toLowerCase();
-      const userData = await login(sanitizedUsername, password);
+      const auth = await login(sanitizedUsername, password);
 
-      console.log("Datos recibidos del authService:", userData);
+      const access = auth.access;
+      const refresh = auth.refresh;
+      const apiUser = auth.user;
 
-      // ✅ Cambio aquí: usar saveUserWithEmbeddedToken en lugar de saveUser
+      if (!apiUser) {
+        throw new Error("No se pudo obtener el usuario desde el servidor");
+      }
+
       await saveUserWithEmbeddedToken({
-        username: userData.username,
-        role: userData.rol.nombre,
-        rol: userData.rol,
-        token: userData.token,
-        vivienda_id: userData.vivienda_id,
+        ...apiUser,
+        username: apiUser.username,
+        role: apiUser.rol?.nombre || apiUser.role,
+        rol: apiUser.rol,
+        vivienda_id: apiUser.vivienda_id,
+        token: access,
+        refresh,
       });
 
       console.log("Usuario guardado exitosamente en contexto");
 
-      if (userData.rol.nombre === ROLE_VIGILANTE) {
+      if (apiUser.rol?.nombre === ROLE_VIGILANTE) {
         navigation.replace("Visitantes");
         return;
-      } else if (userData.rol.nombre === ROLE_RESIDENTE) {
+      } else if (apiUser.rol?.nombre === ROLE_RESIDENTE) {
         navigation.replace("Home");
         return;
       }

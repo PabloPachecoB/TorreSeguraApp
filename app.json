@@ -1,6 +1,5 @@
 {
   "expo": {
-    
     "name": "TorreSegura",
     "slug": "TorreSegura",
     "version": "1.0.0",
@@ -39,7 +38,8 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

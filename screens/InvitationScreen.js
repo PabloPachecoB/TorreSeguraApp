@@ -17,6 +17,7 @@ import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { api, normalizeApiError } from "../services/apiClient";
 
 export default function InvitationScreen({ navigation }) {
   const { user } = useUserContext();
@@ -55,19 +56,7 @@ export default function InvitationScreen({ navigation }) {
     };
 
     try {
-      // Enviar datos al backend (simulado, reemplaza con tu API real)
-      const response = await fetch("https://tu-backend/api/visitantes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // "Authorization": `Bearer ${user.token}`, // Descomenta y usa el token real cuando integres
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error al enviar datos al backend");
-      }
+      await api.post("/visitantes/", data);
 
       console.log("Datos del visitante antes de generar QR:", data);
       console.log("JSON.stringify(data):", JSON.stringify(data));
@@ -75,7 +64,8 @@ export default function InvitationScreen({ navigation }) {
       setShowForm(false);
       Alert.alert("Éxito", "Invitación registrada correctamente.");
     } catch (error) {
-      console.error("Error al procesar invitación:", error);
+      const normalized = normalizeApiError(error);
+      console.error("Error al procesar invitación:", normalized);
       console.log("Datos del visitante antes de generar QR (simulado):", data);
       console.log("JSON.stringify(data) (simulado):", JSON.stringify(data));
       setVisitorData(data);

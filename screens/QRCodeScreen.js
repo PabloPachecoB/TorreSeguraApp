@@ -14,7 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS, SIZES } from "../constants";
 import { useUserContext } from "../context/UserContext";
-import { API_BASE } from "@env";
+import { verificarQR } from "../services/accesosService";
 
 export default function QRCodeScreen({ navigation }) {
   const { user, token } = useUserContext();
@@ -27,45 +27,11 @@ export default function QRCodeScreen({ navigation }) {
 
   const verifyQRWithBackend = async (qrData) => {
     try {
-      console.log("Token usado:", token);
-      console.log("API_BASE:", API_BASE);
-      
-      const response = await fetch(`${API_BASE}/accesos/api/visitas/verificar_qr/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: qrData.id, firma: qrData.firma }),
-      });
+      const data = await verificarQR({ id: qrData.id, firma: qrData.firma, nonce: qrData.nonce });
 
-      const data = await response.json();
-      console.log("Status de respuesta:", response.status);
-      console.log("Respuesta del backend:", data);
-
-      // Verificar si el token es inválido
-      if (response.status === 401 || data.code === "token_not_valid") {
-        Alert.alert(
-          "Sesión expirada", 
-          "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                // Aquí puedes redirigir al login o limpiar el contexto
-                navigation.navigate('Login'); // Ajusta según tu navegación
-              }
-            }
-          ]
-        );
-        setVisitorData(null);
-        setIsValidQR(false);
-        isProcessingRef.current = false;
-        return;
-      }
-
-      if (!response.ok || !data.valido) {
-        console.log("QR inválido:", data.mensaje);
+      if (!data?.valido) {
+        const backendMessage = data?.mensaje || "Este QR no es válido.";
+        Alert.alert("QR inválido", backendMessage);
         setVisitorData(null);
         setIsValidQR(false);
         isProcessingRef.current = false;
@@ -91,8 +57,25 @@ export default function QRCodeScreen({ navigation }) {
       
       console.log("Datos completos del visitante:", completeVisitorData);
     } catch (error) {
-      console.error("Error al verificar QR:", error);
-      Alert.alert("Error de conexión", "No se pudo conectar con el servidor.");
+      const message = error?.message || "No se pudo verificar el QR.";
+
+      if (error?.status === 409) {
+        Alert.alert("QR ya usado", message);
+        setVisitorData(null);
+        setIsValidQR(false);
+        isProcessingRef.current = false;
+        return;
+      }
+
+      if (message.toLowerCase().includes("token") || message.toLowerCase().includes("sesión")) {
+        Alert.alert(
+          "Sesión expirada",
+          "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+          [{ text: "OK", onPress: () => navigation.navigate("Login") }]
+        );
+      } else {
+        Alert.alert("Error", message);
+      }
       setVisitorData(null);
       setIsValidQR(false);
       isProcessingRef.current = false;
@@ -138,7 +121,7 @@ export default function QRCodeScreen({ navigation }) {
     try {
       const parsedData = JSON.parse(data);
       console.log("Datos parseados:", parsedData);
-      if (parsedData.id && parsedData.firma) {
+      if (parsedData.id && parsedData.firma && parsedData.nonce) {
         // Inmediatamente verificar el QR con el backend
         verifyQRWithBackend(parsedData);
       } else {

@@ -1,6 +1,7 @@
 // context/UserContext.js
 import React, { createContext, useState, useEffect, useContext } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearTokens, getAccessToken, setAccessToken, setRefreshToken } from "../services/tokenStorage";
 
 const UserContext = createContext();
 
@@ -15,9 +16,8 @@ export const UserProvider = ({ children }) => {
         
         // Cargar usuario
         const storedUser = await AsyncStorage.getItem("user");
-        // Intentar cargar token desde diferentes keys para compatibilidad
-        const storedToken = await AsyncStorage.getItem("token") || 
-                          await AsyncStorage.getItem("accessToken");
+        // Intentar cargar token desde SecureStore/AsyncStorage
+        const storedToken = (await getAccessToken()) || (await AsyncStorage.getItem("token"));
         
         console.log("Usuario encontrado:", storedUser);
         console.log("Token encontrado:", storedToken);
@@ -53,9 +53,9 @@ export const UserProvider = ({ children }) => {
       await AsyncStorage.setItem("user", JSON.stringify(newUser));
       setUser(newUser);
       
-      // Guardar token por separado
       if (userToken) {
-        await AsyncStorage.setItem("token", userToken);
+        await setAccessToken(userToken);
+        await AsyncStorage.setItem("token", userToken); // compatibilidad
         setToken(userToken);
       }
       
@@ -86,16 +86,18 @@ export const UserProvider = ({ children }) => {
       await AsyncStorage.setItem("user", JSON.stringify(userWithoutToken));
       setUser(userWithoutToken);
       
-      // Guardar tokens por separado (compatibilidad con authService)
+      // Guardar tokens por separado (SecureStore preferido)
       if (userToken) {
-        await AsyncStorage.setItem("token", userToken);
-        await AsyncStorage.setItem("accessToken", userToken); // Para compatibilidad
+        await setAccessToken(userToken);
+        await AsyncStorage.setItem("token", userToken); // compatibilidad
+        await AsyncStorage.setItem("accessToken", userToken); // compatibilidad
         setToken(userToken);
-        console.log("Access token guardado:", userToken);
+        console.log("Access token guardado:");
       }
-      
+
       if (refreshToken) {
-        await AsyncStorage.setItem("refreshToken", refreshToken);
+        await setRefreshToken(refreshToken);
+        await AsyncStorage.setItem("refreshToken", refreshToken); // compatibilidad
         console.log("Refresh token guardado");
       }
       
@@ -110,12 +112,8 @@ export const UserProvider = ({ children }) => {
     try {
       console.log("Cerrando sesión...");
       // Limpiar todos los tokens y datos de usuario
-      await AsyncStorage.multiRemove([
-        "user", 
-        "token", 
-        "accessToken", 
-        "refreshToken"
-      ]);
+      await clearTokens();
+      await AsyncStorage.multiRemove(["user", "token", "accessToken", "refreshToken"]);
       setUser(null);
       setToken(null);
       console.log("Sesión cerrada correctamente");
@@ -127,6 +125,7 @@ export const UserProvider = ({ children }) => {
   const updateToken = async (newToken) => {
     try {
       console.log("Actualizando token:", newToken);
+      await setAccessToken(newToken);
       await AsyncStorage.setItem("token", newToken);
       setToken(newToken);
     } catch (error) {

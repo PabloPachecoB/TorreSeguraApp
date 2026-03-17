@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, Alert, ScrollView } from 'react-native';
-import { useUserContext } from '../context/UserContext';
-import { COLORS } from '../constants';
-import { API_BASE } from "@env"
+import { useUserContext } from "../context/UserContext";
+import { COLORS } from "../constants";
+import { crearVisita } from "../services/accesosService";
 
 export default function VisitRequestScreen({ navigation }) {
   // ✅ Cambio principal: extraer token directamente del contexto
@@ -26,9 +26,6 @@ export default function VisitRequestScreen({ navigation }) {
   }, [user, token]);
 
   const registrarVisita = async () => {
-    console.log("Token being used:", token); // ✅ Ahora debería tener valor
-    
-    // ✅ Validación adicional
     if (!token) {
       Alert.alert("Error", "No se encontró token de autenticación. Por favor, inicia sesión nuevamente.");
       return;
@@ -41,37 +38,18 @@ export default function VisitRequestScreen({ navigation }) {
 
     try {
       setLoading(true);
-      console.log("Enviando solicitud con token:", token);
-      
-      const response = await fetch(`${API_BASE}/accesos/api/visitas/crear/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          nombre_visitante: nombre,
-          documento_visitante: documento,
-          vivienda_destino_id: user.vivienda_id,
-          motivo: motivo,
-        }),
+      const data = await crearVisita({
+        nombre_visitante: nombre,
+        documento_visitante: documento,
+        vivienda_destino_id: user.vivienda_id,
+        motivo,
       });
-
-      const data = await response.json();
       setLoading(false);
 
-      if (!response.ok) {
-        console.log("Error desde backend:", data);
-        Alert.alert("Error", data.error || "Algo salió mal.");
-        return;
-      }
-
-      console.log("Visita registrada exitosamente:", data);
       setQrBase64(data.qr_base64);
     } catch (error) {
       setLoading(false);
-      console.log("Excepción al registrar visita:", error);
-      Alert.alert("Error", "No se pudo registrar la visita.");
+      Alert.alert("Error", error.message || "No se pudo registrar la visita.");
     }
   };
 

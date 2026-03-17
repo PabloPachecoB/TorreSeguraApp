@@ -1,63 +1,51 @@
-// services/authService.js
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE } from "@env"
+import { api, normalizeApiError } from "./apiClient";
+import { getRefreshToken, setAccessToken, setTokens } from "./tokenStorage";
 
-const API_URL = `${API_BASE}/usuarios/api/token/`;
-
-
-export const login = async (username, password) => {
+export async function login(usernameOrEmail, password) {
   try {
-    // Aquí imprimimos la URL que se usará para login
-    console.log("Intentando conectarse a:", API_URL);
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage = errorData.error || errorData.detail || "Error de autenticación";
-      throw new Error(errorMessage);
-    }
-
-
-    const data = await response.json();
-
-    const accessToken = data.access;
-    const refreshToken = data.refresh;
-
-    // Guardamos tokens
-    await AsyncStorage.setItem("accessToken", accessToken);
-    await AsyncStorage.setItem("refreshToken", refreshToken);
-
-    // Ahora obtenemos el perfil del usuario
-    const profileResponse = await fetch(`${API_BASE}/usuarios/api/me/`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+    const response = await api.post("/auth/token/", {
+      username: usernameOrEmail,
+      password,
     });
 
-    if (!profileResponse.ok) {
-      throw new Error("No se pudo obtener la información del usuario");
+    const { access, refresh, user } = response.data || {};
+    if (!access || !refresh) {
+      throw new Error("Respuesta inválida del servidor (tokens faltantes)");
     }
 
-    const user = await profileResponse.json();
-    
-    //  Retornamos todo lo que LoginScreen necesita
-    return {
-      username: user.username,
-      rol: user.rol,
-      token: accessToken,
-      refresh: refreshToken,
-      vivienda_id: user.vivienda_id  // ✅ AÑADIR ESTO
-    };
-  } catch (error) {
-    // console.error("Login error:", error.message);
-    throw error;
+    await setTokens({ access, refresh });
+    return { access, refresh, user };
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
   }
-};
+}
 
+export async function getMe() {
+  try {
+    const response = await api.get("/auth/me/");
+    return response.data;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+
+}
+
+
+export async function refreshToken(refreshOverride) {
+  try {
+    const refresh = refreshOverride || (await getRefreshToken());
+    if (!refresh) throw new Error("No hay refresh token guardado");
+
+    const response = await api.post("/auth/token/refresh/", { refresh });
+    const access = response?.data?.access;
+    if (!access) throw new Error("Respuesta inválida del servidor (access faltante)");
+
+    await setAccessToken(access);
+    return access;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+}

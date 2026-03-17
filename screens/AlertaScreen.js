@@ -17,6 +17,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
+import { crearAlerta } from "../services/alertasService";
 
 const alertTypes = [
   { id: "1", title: "Incendio", icon: "flame-outline", color: COLORS.error },
@@ -61,22 +62,10 @@ export default function AlertScreen({ navigation }) {
     }
 
     try {
-      // Enviar solicitud al backend para registrar la alerta (simulado)
-      const response = await fetch(`https://tu-backend/api/alerts`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // "Authorization": `Bearer ${user.token}`, // Descomenta y usa el token real cuando integres
-        },
-        body: JSON.stringify({
-          type: selectedAlert.title,
-          description,
-        }),
+      await crearAlerta({
+        tipo: selectedAlert.title,
+        descripcion: description,
       });
-
-      if (!response.ok) {
-        throw new Error("Error al enviar la alerta");
-      }
 
       saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
       Alert.alert("Éxito", "Alerta enviada correctamente.");
@@ -84,12 +73,7 @@ export default function AlertScreen({ navigation }) {
       setDescription("");
       setSelectedAlert(null);
     } catch (error) {
-      console.error("Error al enviar alerta:", error);
-      saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
-      Alert.alert("Éxito", "Alerta enviada correctamente (simulado).");
-      setModalVisible(false);
-      setDescription("");
-      setSelectedAlert(null);
+      Alert.alert("Error", error.message || "No se pudo enviar la alerta.");
     }
   };
 

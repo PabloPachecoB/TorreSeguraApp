@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity } from "react-native";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import Icon from "react-native-vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
@@ -7,6 +7,7 @@ import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api, normalizeApiError } from "../services/apiClient";
 
 const mockVisitors = [
   {
@@ -44,23 +45,16 @@ export default function VisitantesScreen({ navigation, route }) {
   useEffect(() => {
     const loadVisitors = async () => {
       try {
-        const response = await fetch("https://tu-backend/api/visitantes", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${user.token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Error al cargar visitantes");
+        const response = await api.get("/visitantes/");
+        const data = response?.data;
+        if (!Array.isArray(data)) {
+          throw new Error("Respuesta inesperada al cargar visitantes");
         }
-
-        const data = await response.json();
         const validData = data.filter(validateVisitorData);
         setVisitors(validData);
       } catch (error) {
-        console.error("Error al cargar visitantes:", error);
+        const normalized = normalizeApiError(error);
+        console.error("Error al cargar visitantes:", normalized);
         const validMockData = mockVisitors.filter(validateVisitorData);
         setVisitors(validMockData);
       }
@@ -85,24 +79,16 @@ export default function VisitantesScreen({ navigation, route }) {
 
   const handleMarkExit = async (visitor) => {
     try {
-      const response = await fetch(`https://tu-backend/api/visitantes/${visitor.id}/mark-exit`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({ status: "departed" }),
+      await api.patch(`/visitantes/${visitor.id}/mark-exit/`, {
+        status: "departed",
       });
-
-      if (!response.ok) {
-        throw new Error("Error al marcar la salida");
-      }
 
       saveNotification(`Visitante ${visitor.name} ha salido.`);
       Alert.alert("Éxito", "Salida marcada correctamente.");
       setVisitors(visitors.filter((v) => v.id !== visitor.id));
     } catch (error) {
-      console.error("Error al marcar salida:", error);
+      const normalized = normalizeApiError(error);
+      console.error("Error al marcar salida:", normalized);
       saveNotification(`Visitante ${visitor.name} ha salido.`);
       Alert.alert("Éxito", "Salida marcada correctamente (simulado).");
       setVisitors(visitors.filter((v) => v.id !== visitor.id));
