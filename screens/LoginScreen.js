@@ -7,10 +7,12 @@ import {
   ImageBackground,
   Image,
   StyleSheet,
+  Dimensions,
+  Alert,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import { login } from "../services/authService";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
@@ -61,17 +63,27 @@ export default function LoginScreen({ navigation }) {
         throw new Error("No se pudo obtener el usuario desde el servidor");
       }
 
+      // Si debe cambiar contraseña, no dar acceso
+      if (auth.debe_cambiar_password) {
+        Alert.alert(
+          "Cambio de contraseña requerido",
+          auth.mensaje || "Debes cambiar tu contraseña. Revisa tu correo electrónico y usa el enlace para crear tu contraseña definitiva. Luego vuelve aquí e inicia sesión con tu nueva contraseña.",
+          [{ text: "Entendido" }]
+        );
+        setPassword("");
+        return;
+      }
+
       await saveUserWithEmbeddedToken({
         ...apiUser,
         username: apiUser.username,
         role: apiUser.rol?.nombre || apiUser.role,
         rol: apiUser.rol,
         vivienda_id: apiUser.vivienda_id,
+        edificio_id: apiUser.edificio_id,
         token: access,
         refresh,
       });
-
-      console.log("Usuario guardado exitosamente en contexto");
 
       if (apiUser.rol?.nombre === ROLE_VIGILANTE) {
         navigation.replace("Visitantes");
@@ -104,7 +116,7 @@ export default function LoginScreen({ navigation }) {
         <Text
           style={{
             color: "#FFFFFF",
-            fontSize: 26,
+            fontSize: Math.min(26, 22),
             fontWeight: "bold",
             marginBottom: 20,
           }}
@@ -194,7 +206,7 @@ export default function LoginScreen({ navigation }) {
           >
             <Text
               style={{
-                color: "#FFFFF",
+                color: "#FFFFFF",
                 fontSize: 14,
                 textDecorationLine: "underline",
                 fontWeight: "500",
@@ -208,7 +220,7 @@ export default function LoginScreen({ navigation }) {
           <TouchableOpacity
             style={{
               backgroundColor: "#00FF00",
-              padding: 15,
+              padding: 13,
               borderRadius: 25,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 2 },
@@ -226,7 +238,7 @@ export default function LoginScreen({ navigation }) {
               style={{
                 textAlign: "center",
                 color: "#000",
-                fontSize: 18,
+                fontSize: Math.min(18, 16),
                 fontWeight: "bold",
               }}
             >
@@ -250,18 +262,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: Math.min(20, 15),
     backgroundColor: "rgba(244, 200, 200, 0.43)",
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
+    width: 100,
+    height: 100,
+    marginBottom: 15,
   },
   title: {
     color: COLORS.white,
-    fontSize: SIZES.fontSizeTitle, // Tamaño para títulos
-    fontFamily: "Roboto-Bold", // Título principal
+    fontSize: Math.min(SIZES.fontSizeTitle, 18),
+    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     marginBottom: 20,
   },
@@ -273,9 +285,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#333333",
-    padding: 15,
+    padding: 12,
     borderRadius: 12,
-    marginBottom: 15,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#444",
     shadowColor: COLORS.black,
@@ -290,12 +302,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: COLORS.white,
-    fontSize: SIZES.fontSizeBody, // Tamaño para texto normal
-    fontFamily: "Roboto-Regular", // Texto normal
+    fontSize: Math.min(SIZES.fontSizeBody, 13),
+    fontFamily: "Roboto-Regular",
   },
   submitButton: {
     backgroundColor: "#00FF00",
-    padding: 15,
+    padding: 13,
     borderRadius: 25,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },

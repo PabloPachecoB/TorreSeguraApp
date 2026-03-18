@@ -1,7 +1,7 @@
 // screens/HomeScreen.js
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import Icon from "react-native-vector-icons/Ionicons";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from "react-native";
+import Icon from "@expo/vector-icons/Ionicons";
 import Card from "../components/Card";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
@@ -11,6 +11,33 @@ import MainLayout from "../components/MainLayout";
 import IconButton from "../components/IconButton";
 import { NotificationIcon, LogoutIcon } from "../components/Icons";
 import CustomAlert from "../components/CustomAlert";
+
+const MENU_ORDER = [
+  "QR o Pass",
+  "Habitantes",
+  "Visitantes",
+  "Mis Visitantes",
+  "Historial Accesos",
+  "Invitaciones",
+  "Pagos",
+  "Áreas Comunes",
+  "Lista Total",
+  "Reportes",
+  "Configuración",
+  "Alertas",
+];
+
+const sortMenuItems = (items) => {
+  return [...items].sort((a, b) => {
+    const indexA = MENU_ORDER.indexOf(a.title);
+    const indexB = MENU_ORDER.indexOf(b.title);
+
+    const safeIndexA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+    const safeIndexB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+
+    return safeIndexA - safeIndexB;
+  });
+};
 
 
 export default function HomeScreen({ navigation }) {
@@ -33,7 +60,8 @@ export default function HomeScreen({ navigation }) {
       setError(null);
       try {
         const menu = await getMenuByRole(role);
-        setMenuItems(menu);
+        const orderedMenu = Array.isArray(menu) ? sortMenuItems(menu) : [];
+        setMenuItems(orderedMenu);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -54,8 +82,8 @@ export default function HomeScreen({ navigation }) {
       case "Mis Visitantes":
         navigation.navigate("Visitantes", { role });
         break;
-      case "Solicitudes":
-      navigation.navigate("VisitRequest");
+      case "Historial Accesos":
+        navigation.navigate("VisitRequest");
         break;
 
       case "Áreas Comunes":
@@ -132,87 +160,101 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <MainLayout navigation={navigation}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Icon name="person-circle-outline" size={40} color={COLORS.black} />
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>{username}</Text>
-            <Text style={styles.headerSubtitle}>{role}</Text>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Icon name="person-circle-outline" size={40} color={COLORS.black} />
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>{username}</Text>
+              <Text style={styles.headerSubtitle}>{role}</Text>
+            </View>
+          </View>
+          <View style={styles.headerRight}>
+            <IconButton onPress={() => {
+              setSelectedTab("notifications");
+              navigation.navigate("Notifications");
+            }} style={styles.headerIconButton}>
+              <NotificationIcon size={30} color={COLORS.black} />
+            </IconButton>
+
+
+            <IconButton onPress={handleLogout}>
+              <LogoutIcon size={35} color={COLORS.black} />
+            </IconButton>
+          </View>
+
+        </View>
+        <View style={styles.content}>
+          <View style={styles.cardsContainer}>
+            {menuItems && Array.isArray(menuItems) && menuItems.map((item, index) => (
+              <Card
+                key={index}
+                title={item.title}
+                number={item.number}
+                color={item.color}
+                hasWarning={item.hasWarning}
+                onPress={() => handleCardPress(item.title)}
+              />
+            ))}
           </View>
         </View>
-        <View style={styles.headerRight}>
-          <IconButton onPress={() => {
-            setSelectedTab("notifications");
-            navigation.navigate("Notifications");
-          }}>
-            <NotificationIcon size={30} color={COLORS.black} />
-          </IconButton>
-
-
-          <IconButton onPress={handleLogout}>
-            <LogoutIcon size={35} color={COLORS.black} />
-          </IconButton>
-        </View>
-
-      </View>
-      <View style={styles.content}>
-        <View style={styles.cardsContainer}>
-          {menuItems && Array.isArray(menuItems) && menuItems.map((item, index) => (
-            <Card
-              key={index}
-              title={item.title}
-              number={item.number}
-              color={item.color}
-              hasWarning={item.hasWarning}
-              onPress={() => handleCardPress(item.title)}
-            />
-          ))}
-        </View>
-        <CustomAlert
-          visible={alertVisible}
-          success={alertSuccess}
-          message={alertMessage}
-          primaryButtonText="Aceptar"
-          onPrimaryPress={() => {
-            setAlertVisible(false);
-            if (alertSuccess) {
-              navigation.replace("Login");
-            }
-          }}
-        />
-
-
-      </View>
-
+      </ScrollView>
+      <CustomAlert
+        visible={alertVisible}
+        success={alertSuccess}
+        message={alertMessage}
+        primaryButtonText="Aceptar"
+        onPrimaryPress={() => {
+          setAlertVisible(false);
+          if (alertSuccess) {
+            navigation.replace("Login");
+          }
+        }}
+      />
     </MainLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: SIZES.padding,
-    paddingVertical: 15,
-    marginTop: 20,
+    paddingVertical: 12,
+    marginTop: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    marginRight: 10,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 25,
+  },
+  headerIconButton: {
+    marginRight: 8,
   },
   headerText: {
     marginLeft: 10,
+    flex: 1,
   },
   headerTitle: {
-    fontSize: SIZES.fontSizeTitle,
+    fontSize: Math.min(SIZES.fontSizeTitle, 18),
     fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     color: COLORS.black,
@@ -228,7 +270,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SIZES.padding,
-    paddingBottom: 100,
   },
   cardsContainer: {
     flexDirection: "row",

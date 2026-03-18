@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Calendar } from "react-native-calendars";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
@@ -452,13 +452,16 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    marginRight: -10,
+    marginBottom: -10,
   },
   button: {
     backgroundColor: COLORS.primary,
     paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 8,
+    marginRight: 10,
+    marginBottom: 10,
   },
   buttonText: {
     color: COLORS.white,

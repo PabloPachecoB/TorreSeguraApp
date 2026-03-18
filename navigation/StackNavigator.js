@@ -1,6 +1,6 @@
 // navigation/StackNavigator.js
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import AreasComunesScreen from "../screens/AreasComunesScreen";
@@ -16,7 +16,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import VisitRequestScreen from '../screens/VisitRequestScreen'; 
 
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function StackNavigator() {
   return (

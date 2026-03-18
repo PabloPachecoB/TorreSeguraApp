@@ -20,6 +20,18 @@ export async function crearVisita({
   }
 }
 
+export async function obtenerHistorialAccesos(search = "") {
+  try {
+    const params = {};
+    if (search) params.search = search;
+    const response = await api.get("/visitantes/", { params });
+    return response.data;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+}
+
 export async function verificarQR({ id, firma, nonce }) {
   try {
     const response = await api.post("/accesos/visitas/verificar-qr/", {

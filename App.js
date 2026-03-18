@@ -8,8 +8,15 @@ import * as SplashScreen from "expo-splash-screen";
 import { useState, useEffect } from "react";
 import { loadFonts } from "./hooks/useFonts";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import useAlertNotification from "./hooks/useAlertNotification";
 
 SplashScreen.preventAutoHideAsync();
+
+function AlertNotificationListener() {
+  useAlertNotification();
+  return null;
+}
 
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -33,15 +40,18 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <UserProvider>
-        <NavigationProvider>
-          <NavigationContainer>
-            <StackNavigator />
-            <StatusBar style="auto" />
-          </NavigationContainer>
-        </NavigationProvider>
-      </UserProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <UserProvider>
+          <AlertNotificationListener />
+          <NavigationProvider>
+            <NavigationContainer>
+              <StackNavigator />
+              <StatusBar style="auto" />
+            </NavigationContainer>
+          </NavigationProvider>
+        </UserProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

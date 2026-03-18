@@ -12,11 +12,11 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
-import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { api, normalizeApiError } from "../services/apiClient";
 
 const paymentMethods = [
   { id: "1", title: "Transferencia Bancaria", icon: "business-outline", color: COLORS.primary },
@@ -30,7 +30,6 @@ const mockExpenses = [
 ];
 
 export default function PaymentScreen({ navigation }) {
-  const { user } = useUserContext();
   const { selectedTab } = useNavigationContext();
   const [expenses, setExpenses] = useState(mockExpenses);
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,22 +40,39 @@ export default function PaymentScreen({ navigation }) {
   useEffect(() => {
     const loadExpenses = async () => {
       try {
-        const response = await fetch("https://tu-backend/api/expenses", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${user.token}`,
-          },
-        });
+        const endpoints = ["/expenses/", "/payments/expenses/", "/pagos/pendientes/"];
+        let loadedExpenses = null;
+        let lastError = null;
 
-        if (!response.ok) {
-          throw new Error("Error al cargar expensas");
+        for (const endpoint of endpoints) {
+          try {
+            const response = await api.get(endpoint);
+            const data = response?.data;
+
+            if (Array.isArray(data)) {
+              loadedExpenses = data;
+              break;
+            }
+
+            if (Array.isArray(data?.results)) {
+              loadedExpenses = data.results;
+              break;
+            }
+          } catch (endpointError) {
+            lastError = endpointError;
+          }
         }
 
-        const data = await response.json();
-        setExpenses(data);
+        if (!loadedExpenses) {
+          throw lastError || new Error("No fue posible cargar expensas");
+        }
+
+        setExpenses(loadedExpenses);
       } catch (error) {
-        console.error("Error al cargar expensas:", error);
+        const normalized = normalizeApiError(error);
+        if (__DEV__) {
+          console.warn("No se pudieron cargar expensas desde API:", normalized.message);
+        }
         setExpenses(mockExpenses);
       }
     };
@@ -99,22 +115,29 @@ export default function PaymentScreen({ navigation }) {
     }
 
     try {
-      const response = await fetch("https://tu-backend/api/payments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({
-          expenseId: selectedExpense.id,
-          amount: selectedExpense.amount,
-          method: selectedMethod.title,
-          details: paymentDetails,
-        }),
-      });
+      const payload = {
+        expenseId: selectedExpense.id,
+        amount: selectedExpense.amount,
+        method: selectedMethod.title,
+        details: paymentDetails,
+      };
 
-      if (!response.ok) {
-        throw new Error("Error al procesar el pago");
+      const endpoints = ["/payments/", "/pagos/", "/payments/process/"];
+      let paid = false;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          await api.post(endpoint, payload);
+          paid = true;
+          break;
+        } catch (endpointError) {
+          lastError = endpointError;
+        }
+      }
+
+      if (!paid) {
+        throw lastError || new Error("No se pudo procesar el pago");
       }
 
       saveNotification(`Pago realizado: ${selectedExpense.description} - ${selectedExpense.amount}`);
@@ -125,14 +148,11 @@ export default function PaymentScreen({ navigation }) {
       setPaymentDetails("");
       setExpenses(expenses.filter((exp) => exp.id !== selectedExpense.id));
     } catch (error) {
-      console.error("Error al procesar el pago:", error);
-      saveNotification(`Pago realizado: ${selectedExpense.description} - ${selectedExpense.amount}`);
-      Alert.alert("Éxito", "Pago realizado correctamente (simulado).");
-      setModalVisible(false);
-      setSelectedExpense(null);
-      setSelectedMethod(null);
-      setPaymentDetails("");
-      setExpenses(expenses.filter((exp) => exp.id !== selectedExpense.id));
+      const normalized = normalizeApiError(error);
+      if (__DEV__) {
+        console.warn("Error al procesar pago:", normalized.message);
+      }
+      Alert.alert("Error", normalized.message || "No se pudo procesar el pago. Intenta de nuevo.");
     }
   };
 

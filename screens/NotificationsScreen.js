@@ -13,11 +13,12 @@ import {
   ScrollView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { ROLES } from "../constants/roles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { launchImageLibrary } from "react-native-image-picker";
 
@@ -260,7 +261,7 @@ export default function NotificationsScreen({ navigation }) {
                   <Text style={styles.anonymousToggleText}>{isAnonymous ? "Sí" : "No"}</Text>
                 </TouchableOpacity>
               </View>
-              {user?.role === "propietario" && (
+              {user?.role === ROLES.RESIDENTE && (
                 <View style={styles.anonymousContainer}>
                   <Text style={styles.anonymousLabel}>Crear votación:</Text>
                   <TouchableOpacity
@@ -377,10 +378,13 @@ const styles = StyleSheet.create({
   votingOptions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    marginRight: -10,
+    marginBottom: -10,
   },
   votingOption: {
     alignItems: "center",
+    marginRight: 10,
+    marginBottom: 10,
   },
   voteButton: {
     backgroundColor: COLORS.secondary,

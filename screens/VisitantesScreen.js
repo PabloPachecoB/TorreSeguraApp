@@ -1,37 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { ROLES } from "../constants/roles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, normalizeApiError } from "../services/apiClient";
 
-const mockVisitors = [
-  {
-    id: "1",
-    name: "Ana Martínez",
-    document: "98765432",
-    purpose: "Visita familiar",
-    departmentNumber: "101",
-    whoAuthorizes: "Juan Pérez",
-    status: "pending",
-  },
-  {
-    id: "2",
-    name: "Luis Rodríguez",
-    document: "45678912",
-    purpose: "Entrega",
-    departmentNumber: "102",
-    whoAuthorizes: "María Gómez",
-    status: "scanned",
-  },
-];
 
 export default function VisitantesScreen({ navigation, route }) {
-  const role = route.params?.role || "portero";
+  const role = route.params?.role || ROLES.VIGILANTE;
   const { selectedTab } = useNavigationContext();
   const { user } = useUserContext();
   const [visitors, setVisitors] = useState([]);
@@ -46,17 +27,15 @@ export default function VisitantesScreen({ navigation, route }) {
     const loadVisitors = async () => {
       try {
         const response = await api.get("/visitantes/");
-        const data = response?.data;
-        if (!Array.isArray(data)) {
-          throw new Error("Respuesta inesperada al cargar visitantes");
-        }
+        const raw = response?.data;
+        // Soportar respuesta paginada {results: [...]} o array directo
+        const data = Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : [];
         const validData = data.filter(validateVisitorData);
         setVisitors(validData);
       } catch (error) {
         const normalized = normalizeApiError(error);
         console.error("Error al cargar visitantes:", normalized);
-        const validMockData = mockVisitors.filter(validateVisitorData);
-        setVisitors(validMockData);
+        setVisitors([]);
       }
     };
     loadVisitors();
@@ -89,9 +68,7 @@ export default function VisitantesScreen({ navigation, route }) {
     } catch (error) {
       const normalized = normalizeApiError(error);
       console.error("Error al marcar salida:", normalized);
-      saveNotification(`Visitante ${visitor.name} ha salido.`);
-      Alert.alert("Éxito", "Salida marcada correctamente (simulado).");
-      setVisitors(visitors.filter((v) => v.id !== visitor.id));
+      Alert.alert("Error", "No se pudo marcar la salida. Intenta de nuevo.");
     }
   };
 
@@ -133,12 +110,14 @@ export default function VisitantesScreen({ navigation, route }) {
             <Text style={styles.visitorDetail}>
               <Text style={styles.label}>Estado:</Text> Escaneado
             </Text>
-            <TouchableOpacity
-              style={styles.exitButton}
-              onPress={() => handleMarkExit(item)}
-            >
-              <Text style={styles.exitButtonText}>Marcar Salida</Text>
-            </TouchableOpacity>
+            {user?.role !== ROLES.RESIDENTE && (
+              <TouchableOpacity
+                style={styles.exitButton}
+                onPress={() => handleMarkExit(item)}
+              >
+                <Text style={styles.exitButtonText}>Marcar Salida</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>
