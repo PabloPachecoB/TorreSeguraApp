@@ -32,6 +32,16 @@ export async function obtenerHistorialAccesos(search = "") {
   }
 }
 
+export async function eliminarInvitacion(id) {
+  try {
+    const response = await api.delete(`/visitantes/${id}/`);
+    return response.data;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+}
+
 export async function verificarQR({ id, firma, nonce }) {
   try {
     const response = await api.post("/accesos/visitas/verificar-qr/", {

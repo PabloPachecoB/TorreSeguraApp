@@ -11,9 +11,12 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
@@ -32,7 +35,6 @@ export default function InvitationScreen({ navigation }) {
   const [visitorName, setVisitorName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Validar que el usuario sea residente
   useEffect(() => {
     if (user?.role !== ROLES.RESIDENTE) {
       Alert.alert("Acceso denegado", "Esta funcionalidad es solo para residentes.");
@@ -40,7 +42,6 @@ export default function InvitationScreen({ navigation }) {
     }
   }, [user, navigation]);
 
-  // Enviar datos al backend y obtener QR firmado
   const handleSubmit = async () => {
     if (!name.trim() || !document.trim()) {
       Alert.alert("Error", "El nombre y documento del visitante son obligatorios.");
@@ -62,13 +63,56 @@ export default function InvitationScreen({ navigation }) {
       setShowForm(false);
     } catch (error) {
       const normalized = normalizeApiError(error);
-      console.error("Error al crear visita:", normalized);
       Alert.alert(
         "Error",
         normalized.message || "No se pudo registrar la invitacion. Intenta de nuevo."
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getQrFilePath = () => {
+    const safeName = visitorName.replace(/[^a-zA-Z0-9]/g, "_");
+    return `${FileSystem.cacheDirectory}qr_${safeName}.png`;
+  };
+
+  const saveQrToFile = async () => {
+    const filePath = getQrFilePath();
+    await FileSystem.writeAsStringAsync(filePath, qrBase64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return filePath;
+  };
+
+  const handleShare = async () => {
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Error", "Compartir no esta disponible en este dispositivo.");
+        return;
+      }
+      const filePath = await saveQrToFile();
+      await Sharing.shareAsync(filePath, {
+        mimeType: "image/png",
+        dialogTitle: `QR de invitacion para ${visitorName}`,
+      });
+    } catch (error) {
+      Alert.alert("Error", "No se pudo compartir el QR.");
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const filePath = await saveQrToFile();
+      await Sharing.shareAsync(filePath, {
+        mimeType: "image/png",
+        dialogTitle: "Guardar QR",
+        UTI: "public.png",
+      });
+    } catch (error) {
+      console.warn("Error guardando QR:", error);
+      Alert.alert("Error", "No se pudo guardar el QR.");
     }
   };
 
@@ -155,9 +199,21 @@ export default function InvitationScreen({ navigation }) {
               Este QR es de uso unico y sera verificado por seguridad
             </Text>
 
-            <TouchableOpacity style={styles.closeButton} onPress={handleCloseQR}>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                <Icon name="share-social-outline" size={20} color={COLORS.white} />
+                <Text style={styles.actionButtonText}>Compartir</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.downloadButton} onPress={handleDownload}>
+                <Icon name="download-outline" size={20} color={COLORS.white} />
+                <Text style={styles.actionButtonText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.newButton} onPress={handleCloseQR}>
               <Icon name="add-circle-outline" size={20} color={COLORS.white} />
-              <Text style={styles.closeButtonText}>  Nueva Invitacion</Text>
+              <Text style={styles.actionButtonText}>  Nueva Invitacion</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -276,16 +332,39 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontStyle: "italic",
   },
-  closeButton: {
+  actionButtons: {
+    flexDirection: "row",
+    marginTop: 20,
+    gap: 12,
+  },
+  shareButton: {
+    backgroundColor: "#25D366",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  downloadButton: {
+    backgroundColor: COLORS.secondary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  newButton: {
     backgroundColor: COLORS.primary,
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 12,
   },
-  closeButtonText: {
+  actionButtonText: {
     color: COLORS.white,
     fontSize: SIZES.fontSizeBody,
     fontWeight: "bold",
