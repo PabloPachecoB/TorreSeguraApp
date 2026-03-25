@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  ScrollView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
@@ -23,8 +25,10 @@ import {
   obtenerMisPagos,
   registrarPago,
 } from "../services/pagosService";
+import { generarQRPago, verificarQRPago } from "../services/pagoQRService";
 
 const METODOS_PAGO = [
+  { id: "QR_BNB", title: "Pagar con QR BNB", icon: "qr-code-outline", color: "#E31837" },
   { id: "TRANSFERENCIA", title: "Transferencia Bancaria", icon: "business-outline", color: COLORS.primary },
   { id: "TARJETA", title: "Tarjeta de Credito/Debito", icon: "card-outline", color: COLORS.secondary },
   { id: "EFECTIVO", title: "Efectivo", icon: "cash-outline", color: COLORS.success },
@@ -45,6 +49,14 @@ export default function PaymentScreen({ navigation }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [referencia, setReferencia] = useState("");
   const [paying, setPaying] = useState(false);
+
+  // QR BNB
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [qrImage, setQrImage] = useState(null);
+  const [qrId, setQrId] = useState(null);
+  const [qrMonto, setQrMonto] = useState("");
+  const [qrChecking, setQrChecking] = useState(false);
+  const qrPollRef = useRef(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -97,6 +109,28 @@ export default function PaymentScreen({ navigation }) {
       Alert.alert("Error", "Selecciona un metodo de pago.");
       return;
     }
+
+    // Flujo QR BNB
+    if (selectedMethod.id === "QR_BNB") {
+      setPaying(true);
+      try {
+        const result = await generarQRPago(selectedCuotas.map((c) => c.id));
+        setQrImage(result.qr_image);
+        setQrId(result.qr_id);
+        setQrMonto(result.monto);
+        setModalVisible(false);
+        setQrModalVisible(true);
+        startQrPolling(result.qr_id);
+      } catch (error) {
+        const msg = error?.message || "No se pudo generar el QR de pago.";
+        Alert.alert("Error", msg);
+      } finally {
+        setPaying(false);
+      }
+      return;
+    }
+
+    // Flujo normal (transferencia, tarjeta, efectivo)
     if (selectedMethod.id === "TRANSFERENCIA" && !referencia.trim()) {
       Alert.alert("Error", "Ingresa el numero de referencia de la transferencia.");
       return;
@@ -115,7 +149,6 @@ export default function PaymentScreen({ navigation }) {
       setSelectedCuotas([]);
       setSelectedMethod(null);
       setReferencia("");
-      // Refrescar pendientes
       setLoading(true);
       loadData();
     } catch (error) {
@@ -129,6 +162,58 @@ export default function PaymentScreen({ navigation }) {
       setPaying(false);
     }
   };
+
+  // ─── QR BNB Polling ──────────────────────────────────────────────
+
+  const startQrPolling = (id) => {
+    // Polling cada 5 segundos para verificar si el QR fue pagado
+    if (qrPollRef.current) clearInterval(qrPollRef.current);
+    qrPollRef.current = setInterval(async () => {
+      try {
+        setQrChecking(true);
+        const result = await verificarQRPago(id);
+        if (result.estado === "PAGADO") {
+          stopQrPolling();
+          setQrModalVisible(false);
+          setSelectedCuotas([]);
+          setSelectedMethod(null);
+          Alert.alert(
+            "Pago Confirmado",
+            `Tu pago de ${result.monto} BOB fue procesado exitosamente.`
+          );
+          setLoading(true);
+          loadData();
+        } else if (result.estado === "EXPIRADO") {
+          stopQrPolling();
+          setQrModalVisible(false);
+          Alert.alert("QR Expirado", "El codigo QR ha expirado. Intenta generar uno nuevo.");
+        }
+      } catch {
+        // Silenciar errores de polling
+      } finally {
+        setQrChecking(false);
+      }
+    }, 5000);
+  };
+
+  const stopQrPolling = () => {
+    if (qrPollRef.current) {
+      clearInterval(qrPollRef.current);
+      qrPollRef.current = null;
+    }
+  };
+
+  const closeQrModal = () => {
+    stopQrPolling();
+    setQrModalVisible(false);
+    setQrImage(null);
+    setQrId(null);
+  };
+
+  // Limpiar polling al desmontar
+  useEffect(() => {
+    return () => stopQrPolling();
+  }, []);
 
   const totalSeleccionado = selectedCuotas.reduce(
     (sum, c) => sum + parseFloat(c.total || c.monto || 0),
@@ -431,6 +516,57 @@ export default function PaymentScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* QR Payment Modal */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={qrModalVisible}
+        onRequestClose={closeQrModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { alignItems: "center" }]}>
+            <Text style={styles.modalTitle}>Escanea el QR para pagar</Text>
+
+            <Text style={styles.qrMonto}>{parseFloat(qrMonto || 0).toFixed(2)} BOB</Text>
+
+            {qrImage ? (
+              <View style={styles.qrImageContainer}>
+                <Image
+                  source={{ uri: `data:image/png;base64,${qrImage}` }}
+                  style={styles.qrImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : (
+              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 30 }} />
+            )}
+
+            <Text style={styles.qrInstructions}>
+              Abre tu app bancaria BNB y escanea este codigo QR para realizar el pago.
+            </Text>
+
+            {qrChecking && (
+              <View style={styles.qrCheckingRow}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.qrCheckingText}>Verificando pago...</Text>
+              </View>
+            )}
+
+            <View style={styles.qrStatusRow}>
+              <Icon name="time-outline" size={16} color="#F59E0B" />
+              <Text style={styles.qrStatusText}>Esperando pago...</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: COLORS.gray, marginTop: 16, width: "100%" }]}
+              onPress={closeQrModal}
+            >
+              <Text style={styles.modalBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNav selectedTab={selectedTab} navigation={navigation} />
     </SafeAreaView>
   );
@@ -616,4 +752,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+  // QR Modal
+  qrMonto: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginBottom: 16,
+  },
+  qrImageContainer: {
+    backgroundColor: "#FFF",
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  qrImage: {
+    width: 240,
+    height: 240,
+  },
+  qrInstructions: {
+    fontSize: 13,
+    color: COLORS.gray,
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 10,
+  },
+  qrCheckingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  qrCheckingText: {
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  qrStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  qrStatusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#92400E",
+  },
 });

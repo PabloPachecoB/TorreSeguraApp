@@ -9,7 +9,7 @@ import { COLORS, SIZES } from "../constants";
 import { getMenuByRole } from "../services/menuService";
 import MainLayout from "../components/MainLayout";
 import IconButton from "../components/IconButton";
-import { NotificationIcon, LogoutIcon } from "../components/Icons";
+import { LogoutIcon } from "../components/Icons";
 import CustomAlert from "../components/CustomAlert";
 
 const MENU_ORDER = [
@@ -51,6 +51,14 @@ export default function HomeScreen({ navigation }) {
   const [alertMessage, setAlertMessage] = useState("");
   const username = user?.username || "Usuario";
   const role = user?.role || user?.rol?.nombre || "Rol";
+
+  // Marcar tab "home" como activo al enfocar esta pantalla
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      setSelectedTab("home");
+    });
+    return unsubscribe;
+  }, [navigation, setSelectedTab]);
 
   useEffect(() => {
     if (!role) return;
@@ -174,14 +182,6 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
           <View style={styles.headerRight}>
-            <IconButton onPress={() => {
-              setSelectedTab("notifications");
-              navigation.navigate("Notifications");
-            }} style={styles.headerIconButton}>
-              <NotificationIcon size={30} color={COLORS.black} />
-            </IconButton>
-
-
             <IconButton onPress={handleLogout}>
               <LogoutIcon size={35} color={COLORS.black} />
             </IconButton>

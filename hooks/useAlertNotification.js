@@ -1,133 +1,70 @@
-import { useEffect, useRef, useCallback } from "react";
-import { Alert, AppState, Platform, Vibration } from "react-native";
+import { useEffect, useRef } from "react";
+import { Alert, Platform, Vibration } from "react-native";
 import { Audio } from "expo-av";
 import { useUserContext } from "../context/UserContext";
-import { ROLES } from "../constants/roles";
 import { obtenerAlertasNuevas } from "../services/alertasService";
 
-const POLL_INTERVAL_MS = 10000; // 10 segundos
+const POLL_INTERVAL = 10000; // 10 segundos
 
-/**
- * Hook que hace polling de alertas nuevas del edificio y reproduce un sonido/vibra
- * cuando llega una alerta. Solo activo para Vigilante y Gerente.
- */
 export default function useAlertNotification() {
   const { user, isAuthenticated } = useUserContext();
-  const lastCheckRef = useRef(new Date().toISOString());
+  const lastPoll = useRef(new Date().toISOString());
   const intervalRef = useRef(null);
-  const soundRef = useRef(null);
 
-  const rolesConNotificacion = [ROLES.VIGILANTE, ROLES.GERENTE, "Administrador"];
-  const debePollear =
-    isAuthenticated &&
-    user?.role &&
-    rolesConNotificacion.includes(user.role);
-
-  const playAlertSound = useCallback(async () => {
-    try {
-      // Vibrar el dispositivo
-      Vibration.vibrate([0, 500, 200, 500]);
-
-      // Intentar reproducir sonido
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-
-      // Generar un beep con un tono de alerta usando un URI de sonido del sistema
-      // En Expo, usamos un asset embebido o generamos un tono simple
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
-
-      // Usar un sonido de notificacion del sistema si disponible
-      // Como fallback, solo vibrar (ya lo hacemos arriba)
-      if (Platform.OS !== "web") {
-        const { sound } = await Audio.Sound.createAsync(
-          // Usar un beep de emergencia generado como data URI
-          { uri: "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" },
-          { shouldPlay: true, volume: 1.0 }
-        );
-        soundRef.current = sound;
-        // Limpiar despues de reproducir
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.didJustFinish) {
-            sound.unloadAsync();
-          }
-        });
-      }
-    } catch (err) {
-      // Si falla el sonido, al menos ya vibro
-      console.warn("No se pudo reproducir sonido de alerta:", err.message);
-    }
-  }, []);
-
-  const checkNewAlerts = useCallback(async () => {
-    if (!debePollear) return;
-
-    try {
-      const nuevas = await obtenerAlertasNuevas(lastCheckRef.current);
-      if (nuevas && nuevas.length > 0) {
-        // Actualizar timestamp al de la alerta mas reciente
-        lastCheckRef.current = nuevas[0].fecha || new Date().toISOString();
-
-        // Sonar y vibrar
-        await playAlertSound();
-
-        // Mostrar alerta visual
-        const primera = nuevas[0];
-        const titulo = nuevas.length === 1
-          ? `Nueva Alerta: ${primera.tipo}`
-          : `${nuevas.length} Alertas Nuevas`;
-        const mensaje = nuevas.length === 1
-          ? primera.descripcion
-          : nuevas.map((a) => `${a.tipo}: ${a.descripcion}`).join("\n");
-
-        Alert.alert(titulo, mensaje);
-      }
-    } catch (err) {
-      // Silenciar errores de polling
-    }
-  }, [debePollear, playAlertSound]);
+  const rolNombre = user?.role || user?.rol?.nombre;
+  const shouldPoll =
+    isAuthenticated && (rolNombre === "Vigilante" || rolNombre === "Gerente");
 
   useEffect(() => {
-    if (!debePollear) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+    if (!shouldPoll) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
 
-    // Iniciar polling
-    lastCheckRef.current = new Date().toISOString();
-    intervalRef.current = setInterval(checkNewAlerts, POLL_INTERVAL_MS);
+    // Reset timestamp al activarse
+    lastPoll.current = new Date().toISOString();
 
-    // Pausar cuando la app va a background, reanudar en foreground
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        lastCheckRef.current = new Date().toISOString();
-        if (!intervalRef.current) {
-          intervalRef.current = setInterval(checkNewAlerts, POLL_INTERVAL_MS);
+    async function poll() {
+      try {
+        const nuevas = await obtenerAlertasNuevas(lastPoll.current);
+        if (nuevas && nuevas.length > 0) {
+          lastPoll.current = new Date().toISOString();
+
+          // Vibrar
+          Vibration.vibrate([0, 300, 150, 300]);
+
+          // Sonido
+          try {
+            const { sound } = await Audio.Sound.createAsync(
+              require("../assets/alert_beep.mp3")
+            );
+            await sound.playAsync();
+            // Liberar después de reproducir
+            sound.setOnPlaybackStatusUpdate((s) => {
+              if (s.didJustFinish) sound.unloadAsync();
+            });
+          } catch {
+            // Si no hay archivo de sonido, seguir sin error
+          }
+
+          // Mostrar alerta nativa
+          const count = nuevas.length;
+          const tipos = [...new Set(nuevas.map((a) => a.tipo))].join(", ");
+          Alert.alert(
+            `🔔 ${count} nueva${count > 1 ? "s" : ""} alerta${count > 1 ? "s" : ""}`,
+            `Tipo${count > 1 ? "s" : ""}: ${tipos}`,
+            [{ text: "OK" }]
+          );
         }
-      } else {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
+      } catch {
+        // Silenciar errores de polling
       }
-    });
+    }
+
+    intervalRef.current = setInterval(poll, POLL_INTERVAL);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      subscription?.remove();
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [debePollear, checkNewAlerts]);
+  }, [shouldPoll]);
 }
