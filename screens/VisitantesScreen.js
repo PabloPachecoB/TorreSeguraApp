@@ -1,79 +1,71 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { ROLES } from "../constants/roles";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, normalizeApiError } from "../services/apiClient";
-
-const mockVisitors = [
-  {
-    id: "1",
-    name: "Ana Martínez",
-    document: "98765432",
-    purpose: "Visita familiar",
-    departmentNumber: "101",
-    whoAuthorizes: "Juan Pérez",
-    status: "pending",
-  },
-  {
-    id: "2",
-    name: "Luis Rodríguez",
-    document: "45678912",
-    purpose: "Entrega",
-    departmentNumber: "102",
-    whoAuthorizes: "María Gómez",
-    status: "scanned",
-  },
-];
+import { eliminarInvitacion } from "../services/accesosService";
 
 export default function VisitantesScreen({ navigation, route }) {
-  const role = route.params?.role || "portero";
+  const role = route.params?.role || ROLES.VIGILANTE;
   const { selectedTab } = useNavigationContext();
   const { user } = useUserContext();
   const [visitors, setVisitors] = useState([]);
   const [screenMode, setScreenMode] = useState("initial");
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const validateVisitorData = (visitor) => {
-    const requiredFields = ["id", "name", "document", "purpose", "departmentNumber", "whoAuthorizes", "status"];
-    return requiredFields.every((field) => field in visitor && visitor[field] !== undefined && visitor[field] !== null);
-  };
+  const loadVisitors = useCallback(async () => {
+    try {
+      const response = await api.get("/visitantes/");
+      const raw = response?.data;
+      const data = Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : [];
+      setVisitors(data);
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      console.error("Error al cargar visitantes:", normalized);
+      setVisitors([]);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadVisitors = async () => {
-      try {
-        const response = await api.get("/visitantes/");
-        const data = response?.data;
-        if (!Array.isArray(data)) {
-          throw new Error("Respuesta inesperada al cargar visitantes");
-        }
-        const validData = data.filter(validateVisitorData);
-        setVisitors(validData);
-      } catch (error) {
-        const normalized = normalizeApiError(error);
-        console.error("Error al cargar visitantes:", normalized);
-        const validMockData = mockVisitors.filter(validateVisitorData);
-        setVisitors(validMockData);
-      }
+    const inicial = async () => {
+      setLoading(true);
+      await loadVisitors();
+      setLoading(false);
     };
-    loadVisitors();
-  }, []);
+    inicial();
+  }, [loadVisitors]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadVisitors();
+    setRefreshing(false);
+  }, [loadVisitors]);
 
   const saveNotification = async (message) => {
     try {
       const storedNotifications = await AsyncStorage.getItem("notifications");
       const notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
-      const newNotification = {
-        message,
-        date: new Date().toISOString(),
-      };
-      notifications.push(newNotification);
+      notifications.push({ message, date: new Date().toISOString() });
       await AsyncStorage.setItem("notifications", JSON.stringify(notifications));
     } catch (error) {
-      console.error("Error al guardar notificación:", error);
+      console.error("Error al guardar notificacion:", error);
     }
   };
 
@@ -82,17 +74,36 @@ export default function VisitantesScreen({ navigation, route }) {
       await api.patch(`/visitantes/${visitor.id}/mark-exit/`, {
         status: "departed",
       });
-
       saveNotification(`Visitante ${visitor.name} ha salido.`);
-      Alert.alert("Éxito", "Salida marcada correctamente.");
-      setVisitors(visitors.filter((v) => v.id !== visitor.id));
+      Alert.alert("Exito", "Salida marcada correctamente.");
+      setVisitors((prev) => prev.filter((v) => v.id !== visitor.id));
     } catch (error) {
       const normalized = normalizeApiError(error);
-      console.error("Error al marcar salida:", normalized);
-      saveNotification(`Visitante ${visitor.name} ha salido.`);
-      Alert.alert("Éxito", "Salida marcada correctamente (simulado).");
-      setVisitors(visitors.filter((v) => v.id !== visitor.id));
+      Alert.alert("Error", normalized.message || "No se pudo marcar la salida.");
     }
+  };
+
+  const handleDeleteInvitation = (visitor) => {
+    Alert.alert(
+      "Eliminar invitacion",
+      `Estas seguro de eliminar la invitacion de ${visitor.name}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await eliminarInvitacion(visitor.id);
+              Alert.alert("Eliminado", "La invitacion fue eliminada.");
+              setVisitors((prev) => prev.filter((v) => v.id !== visitor.id));
+            } catch (error) {
+              Alert.alert("Error", error.message || "No se pudo eliminar la invitacion.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const pendingVisitors = visitors.filter((v) => v.status === "pending");
@@ -101,7 +112,7 @@ export default function VisitantesScreen({ navigation, route }) {
   const getVisitorStatusColor = (status) => {
     switch (status) {
       case "pending":
-        return COLORS.gray;
+        return "#FF9500";
       case "scanned":
         return COLORS.success;
       default:
@@ -109,105 +120,196 @@ export default function VisitantesScreen({ navigation, route }) {
     }
   };
 
-  const renderVisitor = ({ item, isPending }) => (
-    <View style={[styles.visitorItem, { borderColor: getVisitorStatusColor(item.status) }]}>
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const mins = String(d.getMinutes()).padStart(2, "0");
+    return `${day}/${month} ${hours}:${mins}`;
+  };
+
+  const renderPendingVisitor = ({ item }) => (
+    <View style={[styles.visitorItem, { borderColor: getVisitorStatusColor("pending") }]}>
       <View style={styles.visitorHeader}>
-        <Icon name="person-outline" size={24} color={getVisitorStatusColor(item.status)} />
+        <Icon name="person-outline" size={24} color={getVisitorStatusColor("pending")} />
         <Text style={styles.visitorText}>{item.name}</Text>
       </View>
       <View style={styles.visitorInfo}>
-        {!isPending && (
-          <>
-            <Text style={styles.visitorDetail}>
-              <Text style={styles.label}>Documento:</Text> {item.document}
-            </Text>
-            <Text style={styles.visitorDetail}>
-              <Text style={styles.label}>Motivo:</Text> {item.purpose}
-            </Text>
-            <Text style={styles.visitorDetail}>
-              <Text style={styles.label}>Departamento:</Text> {item.departmentNumber}
-            </Text>
-            <Text style={styles.visitorDetail}>
-              <Text style={styles.label}>Autorizado por:</Text> {item.whoAuthorizes}
-            </Text>
-            <Text style={styles.visitorDetail}>
-              <Text style={styles.label}>Estado:</Text> Escaneado
-            </Text>
-            <TouchableOpacity
-              style={styles.exitButton}
-              onPress={() => handleMarkExit(item)}
-            >
-              <Text style={styles.exitButtonText}>Marcar Salida</Text>
-            </TouchableOpacity>
-          </>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Documento:</Text> {item.document}
+        </Text>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Motivo:</Text> {item.purpose || "—"}
+        </Text>
+        {item.departmentNumber ? (
+          <Text style={styles.visitorDetail}>
+            <Text style={styles.label}>Departamento:</Text> {item.departmentNumber}
+          </Text>
+        ) : null}
+        {item.entryDate ? (
+          <Text style={styles.visitorDetail}>
+            <Text style={styles.label}>Creado:</Text> {formatDate(item.entryDate)}
+          </Text>
+        ) : null}
+        <View style={styles.pendingStatusRow}>
+          <Icon name="time-outline" size={14} color="#FF9500" />
+          <Text style={styles.pendingStatusText}>QR pendiente de escaneo</Text>
+        </View>
+
+        {user?.role === ROLES.RESIDENTE && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDeleteInvitation(item)}
+          >
+            <Icon name="trash-outline" size={16} color={COLORS.white} />
+            <Text style={styles.deleteButtonText}>Eliminar invitacion</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
   );
 
+  const renderScannedVisitor = ({ item }) => (
+    <View style={[styles.visitorItem, { borderColor: getVisitorStatusColor("scanned") }]}>
+      <View style={styles.visitorHeader}>
+        <Icon name="person-outline" size={24} color={getVisitorStatusColor("scanned")} />
+        <Text style={styles.visitorText}>{item.name}</Text>
+      </View>
+      <View style={styles.visitorInfo}>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Documento:</Text> {item.document}
+        </Text>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Motivo:</Text> {item.purpose || "—"}
+        </Text>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Departamento:</Text> {item.departmentNumber}
+        </Text>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Autorizado por:</Text> {item.whoAuthorizes}
+        </Text>
+        <Text style={styles.visitorDetail}>
+          <Text style={styles.label}>Estado:</Text> En sitio
+        </Text>
+        {user?.role !== ROLES.RESIDENTE && (
+          <TouchableOpacity
+            style={styles.exitButton}
+            onPress={() => handleMarkExit(item)}
+          >
+            <Text style={styles.exitButtonText}>Marcar Salida</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderListContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.centeredMessage}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.message}>Cargando...</Text>
+        </View>
+      );
+    }
+
+    const data = screenMode === "pending" ? pendingVisitors : scannedVisitors;
+    const emptyMsg =
+      screenMode === "pending"
+        ? "No hay invitaciones pendientes."
+        : "No hay visitantes en sitio.";
+
+    return (
+      <FlatList
+        data={data}
+        renderItem={screenMode === "pending" ? renderPendingVisitor : renderScannedVisitor}
+        keyExtractor={(item) => `${screenMode}-${item.id}`}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+        }
+        ListEmptyComponent={
+          <View style={styles.centeredMessage}>
+            <Icon name="people-outline" size={48} color={COLORS.gray} />
+            <Text style={styles.message}>{emptyMsg}</Text>
+          </View>
+        }
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          if (screenMode !== "initial") {
-            setScreenMode("initial");
-          } else {
-            navigation.goBack();
-          }
-        }}>
+        <TouchableOpacity
+          onPress={() => {
+            if (screenMode !== "initial") {
+              setScreenMode("initial");
+            } else {
+              navigation.goBack();
+            }
+          }}
+        >
           <Icon name="arrow-back-outline" size={30} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {role === "propietario" ? "Mis Visitantes" : "Visitantes"}
+          {role === "propietario" || user?.role === ROLES.RESIDENTE
+            ? "Mis Visitantes"
+            : "Visitantes"}
         </Text>
         <View style={{ width: 30 }} />
       </View>
+
       {screenMode === "initial" ? (
         <View style={styles.initialContainer}>
           <TouchableOpacity
             style={styles.optionButton}
             onPress={() => setScreenMode("pending")}
           >
-            <Text style={styles.optionButtonText}>Visitantes Pendientes</Text>
+            <View style={styles.optionRow}>
+              <Icon name="time-outline" size={28} color="#FF9500" />
+              <View style={styles.optionTextContainer}>
+                <Text style={styles.optionButtonText}>Invitaciones Pendientes</Text>
+                <Text style={styles.optionDescription}>QR aun no escaneados</Text>
+              </View>
+              {pendingVisitors.length > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingVisitors.length}</Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.optionButton}
             onPress={() => setScreenMode("scanned")}
           >
-            <Text style={styles.optionButtonText}>Visitantes Escaneados</Text>
+            <View style={styles.optionRow}>
+              <Icon name="checkmark-circle-outline" size={28} color={COLORS.success} />
+              <View style={styles.optionTextContainer}>
+                <Text style={styles.optionButtonText}>Visitantes En Sitio</Text>
+                <Text style={styles.optionDescription}>QR escaneados, aun en el edificio</Text>
+              </View>
+              {scannedVisitors.length > 0 && (
+                <View style={[styles.badge, { backgroundColor: COLORS.success }]}>
+                  <Text style={styles.badgeText}>{scannedVisitors.length}</Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         </View>
       ) : (
-        <>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {screenMode === "pending" ? "Visitantes Pendientes" : "Visitantes Escaneados"}
-            </Text>
-            {screenMode === "pending" ? (
-              pendingVisitors.length === 0 ? (
-                <Text style={styles.message}>No hay visitantes pendientes.</Text>
-              ) : (
-                <FlatList
-                  data={pendingVisitors}
-                  renderItem={({ item }) => renderVisitor({ item, isPending: true })}
-                  keyExtractor={(item) => `pending-${item.id}`}
-                  contentContainerStyle={styles.list}
-                />
-              )
-            ) : scannedVisitors.length === 0 ? (
-              <Text style={styles.message}>No hay visitantes escaneados.</Text>
-            ) : (
-              <FlatList
-                data={scannedVisitors}
-                renderItem={({ item }) => renderVisitor({ item, isPending: false })}
-                keyExtractor={(item) => `scanned-${item.id}`}
-                contentContainerStyle={styles.list}
-              />
-            )}
-          </View>
-        </>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {screenMode === "pending" ? "Invitaciones Pendientes" : "Visitantes En Sitio"}
+          </Text>
+          {renderListContent()}
+        </View>
       )}
+
       <BottomNav selectedTab={selectedTab} navigation={navigation} />
     </SafeAreaView>
   );
@@ -243,20 +345,47 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     padding: 20,
     borderRadius: SIZES.borderRadius,
-    marginVertical: 10,
-    width: "80%",
-    alignItems: "center",
+    marginVertical: 8,
+    width: "90%",
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
   },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  optionTextContainer: {
+    flex: 1,
+    marginLeft: 14,
+  },
   optionButtonText: {
     fontSize: SIZES.fontSizeSubtitle,
     fontFamily: "Roboto-Medium",
     fontWeight: "bold",
     color: COLORS.black,
+  },
+  optionDescription: {
+    fontSize: 12,
+    fontFamily: "Roboto-Regular",
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  badge: {
+    backgroundColor: "#FF9500",
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+  badgeText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "bold",
   },
   section: {
     flex: 1,
@@ -303,11 +432,40 @@ const styles = StyleSheet.create({
     fontSize: SIZES.fontSizeSmall,
     fontFamily: "Roboto-Regular",
     color: COLORS.gray,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   label: {
     fontWeight: "bold",
     color: COLORS.black,
+  },
+  pendingStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+  },
+  pendingStatusText: {
+    fontSize: 12,
+    color: "#FF9500",
+    fontFamily: "Roboto-Medium",
+    fontWeight: "600",
+  },
+  deleteButton: {
+    backgroundColor: COLORS.error,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+  },
+  deleteButtonText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontFamily: "Roboto-Bold",
+    fontWeight: "bold",
   },
   exitButton: {
     backgroundColor: COLORS.error,
@@ -322,10 +480,15 @@ const styles = StyleSheet.create({
     fontFamily: "Roboto-Bold",
     fontWeight: "bold",
   },
+  centeredMessage: {
+    alignItems: "center",
+    marginTop: 60,
+  },
   message: {
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Regular",
     color: COLORS.gray,
     textAlign: "center",
+    marginTop: 10,
   },
 });

@@ -1,5 +1,5 @@
 // screens/InvitationScreen.js
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,20 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
-  Share,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import QRCode from "react-native-qrcode-svg";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
+import { ROLES } from "../constants/roles";
 import { api, normalizeApiError } from "../services/apiClient";
 
 export default function InvitationScreen({ navigation }) {
@@ -25,88 +30,99 @@ export default function InvitationScreen({ navigation }) {
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [departmentNumber, setDepartmentNumber] = useState("");
-  const [whoAuthorizes, setWhoAuthorizes] = useState("");
   const [showForm, setShowForm] = useState(true);
-  const [visitorData, setVisitorData] = useState(null);
-  const qrRef = useRef(); // Referencia al componente QRCode
+  const [qrBase64, setQrBase64] = useState(null);
+  const [visitorName, setVisitorName] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Validar que el usuario sea propietario
   useEffect(() => {
-    if (user?.role !== "Residente") {
-      Alert.alert("Acceso denegado", "Esta funcionalidad es solo para propietarios.");
+    if (user?.role !== ROLES.RESIDENTE) {
+      Alert.alert("Acceso denegado", "Esta funcionalidad es solo para residentes.");
       navigation.replace("Home");
     }
   }, [user, navigation]);
 
-  // Enviar datos al backend y generar QR
   const handleSubmit = async () => {
-    if (!name || !document || !purpose || !departmentNumber || !whoAuthorizes) {
-      Alert.alert("Error", "Por favor, completa todos los campos obligatorios.");
+    if (!name.trim() || !document.trim()) {
+      Alert.alert("Error", "El nombre y documento del visitante son obligatorios.");
       return;
     }
 
-    const data = {
-      name,
-      document,
-      purpose,
-      departmentNumber,
-      whoAuthorizes,
-      status: "pending",
-    };
+    setLoading(true);
 
     try {
-      await api.post("/visitantes/", data);
+      const response = await api.post("/accesos/visitas/crear/", {
+        nombre_visitante: name.trim(),
+        documento_visitante: document.trim(),
+        vivienda_destino_id: user?.vivienda_id,
+        motivo: purpose.trim() || "Visita",
+      });
 
-      console.log("Datos del visitante antes de generar QR:", data);
-      console.log("JSON.stringify(data):", JSON.stringify(data));
-      setVisitorData(data);
+      setQrBase64(response.data.qr_base64);
+      setVisitorName(name.trim());
       setShowForm(false);
-      Alert.alert("Éxito", "Invitación registrada correctamente.");
     } catch (error) {
       const normalized = normalizeApiError(error);
-      console.error("Error al procesar invitación:", normalized);
-      console.log("Datos del visitante antes de generar QR (simulado):", data);
-      console.log("JSON.stringify(data) (simulado):", JSON.stringify(data));
-      setVisitorData(data);
-      setShowForm(false);
-      Alert.alert("Éxito", "Invitación registrada correctamente (simulado).");
+      Alert.alert(
+        "Error",
+        normalized.message || "No se pudo registrar la invitacion. Intenta de nuevo."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Compartir el código QR
-  const handleShareQR = async () => {
-    if (!qrRef.current) {
-      Alert.alert("Error", "No se pudo generar la imagen del QR para compartir.");
-      return;
-    }
+  const getQrFilePath = () => {
+    const safeName = visitorName.replace(/[^a-zA-Z0-9]/g, "_");
+    return `${FileSystem.cacheDirectory}qr_${safeName}.png`;
+  };
 
+  const saveQrToFile = async () => {
+    const filePath = getQrFilePath();
+    await FileSystem.writeAsStringAsync(filePath, qrBase64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return filePath;
+  };
+
+  const handleShare = async () => {
     try {
-      // Convertir el QR a una imagen base64
-      qrRef.current.toDataURL(async (data) => {
-        const base64Image = `data:image/png;base64,${data}`;
-        const shareOptions = {
-          title: "Código QR de Invitación",
-          message: `Código QR para la visita de ${visitorData.name}`,
-          url: base64Image,
-        };
-
-        await Share.share(shareOptions);
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Error", "Compartir no esta disponible en este dispositivo.");
+        return;
+      }
+      const filePath = await saveQrToFile();
+      await Sharing.shareAsync(filePath, {
+        mimeType: "image/png",
+        dialogTitle: `QR de invitacion para ${visitorName}`,
       });
     } catch (error) {
-      console.error("Error al compartir el QR:", error);
-      Alert.alert("Error", "No se pudo compartir el código QR. Intenta de nuevo.");
+      Alert.alert("Error", "No se pudo compartir el QR.");
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const filePath = await saveQrToFile();
+      await Sharing.shareAsync(filePath, {
+        mimeType: "image/png",
+        dialogTitle: "Guardar QR",
+        UTI: "public.png",
+      });
+    } catch (error) {
+      console.warn("Error guardando QR:", error);
+      Alert.alert("Error", "No se pudo guardar el QR.");
     }
   };
 
   const handleCloseQR = () => {
-    setVisitorData(null);
+    setQrBase64(null);
+    setVisitorName("");
     setShowForm(true);
     setName("");
     setDocument("");
     setPurpose("");
-    setDepartmentNumber("");
-    setWhoAuthorizes("");
   };
 
   return (
@@ -116,77 +132,93 @@ export default function InvitationScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-outline" size={30} color={COLORS.black} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nueva Invitación</Text>
+        <Text style={styles.headerTitle}>Nueva Invitacion</Text>
         <View style={{ width: 30 }} />
       </View>
+
       {showForm ? (
-        <View style={styles.form}>
-          <TextInput
-            placeholder="Nombre"
-            placeholderTextColor={COLORS.gray}
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            placeholder="Carnet de identidad"
-            placeholderTextColor={COLORS.gray}
-            style={styles.input}
-            value={document}
-            onChangeText={setDocument}
-            keyboardType="numeric"
-          />
-          <TextInput
-            placeholder="Motivo de la visita"
-            placeholderTextColor={COLORS.gray}
-            style={styles.input}
-            value={purpose}
-            onChangeText={setPurpose}
-          />
-          <TextInput
-            placeholder="Número del departamento"
-            placeholderTextColor={COLORS.gray}
-            style={styles.input}
-            value={departmentNumber}
-            onChangeText={setDepartmentNumber}
-          />
-          <TextInput
-            placeholder="Quién lo autoriza"
-            placeholderTextColor={COLORS.gray}
-            style={styles.input}
-            value={whoAuthorizes}
-            onChangeText={setWhoAuthorizes}
-          />
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitButtonText}>Guardar y Generar QR</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        visitorData ? (
-          <View style={styles.qrModal}>
-            <View style={styles.qrContainer}>
-              <Text style={styles.qrTitle}>Código QR para {visitorData.name}</Text>
-              <QRCode
-                value={JSON.stringify(visitorData)}
-                size={250}
-                backgroundColor={COLORS.white}
-                color={COLORS.black}
-                getRef={(ref) => (qrRef.current = ref)} // Obtener referencia del QRCode
-              />
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity style={styles.shareButton} onPress={handleShareQR}>
-                  <Text style={styles.shareButtonText}>Compartir</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeButton} onPress={handleCloseQR}>
-                  <Text style={styles.closeButtonText}>Cerrar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        <ScrollView contentContainerStyle={styles.formContainer}>
+          <View style={styles.form}>
+            <Text style={styles.formLabel}>Nombre del visitante *</Text>
+            <TextInput
+              placeholder="Nombre completo"
+              placeholderTextColor={COLORS.gray}
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Text style={styles.formLabel}>Documento de identidad *</Text>
+            <TextInput
+              placeholder="Numero de documento"
+              placeholderTextColor={COLORS.gray}
+              style={styles.input}
+              value={document}
+              onChangeText={setDocument}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.formLabel}>Motivo de la visita</Text>
+            <TextInput
+              placeholder="Ej: Visita familiar, entrega, etc."
+              placeholderTextColor={COLORS.gray}
+              style={styles.input}
+              value={purpose}
+              onChangeText={setPurpose}
+            />
+
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>Generar QR de Invitacion</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        ) : (
-          <Text style={styles.message}>Error: No se encontraron datos para generar el QR.</Text>
-        )
-      )}
+        </ScrollView>
+      ) : qrBase64 ? (
+        <ScrollView contentContainerStyle={styles.qrScrollContainer}>
+          <View style={styles.qrContainer}>
+            <Icon name="checkmark-circle" size={50} color="#4CAF50" />
+            <Text style={styles.qrTitle}>Invitacion para {visitorName}</Text>
+            <Text style={styles.qrSubtitle}>
+              Muestre este codigo al vigilante en la entrada
+            </Text>
+
+            <Image
+              source={{ uri: `data:image/png;base64,${qrBase64}` }}
+              style={styles.qrImage}
+              resizeMode="contain"
+            />
+
+            <Text style={styles.qrNote}>
+              Este QR es de uso unico y sera verificado por seguridad
+            </Text>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                <Icon name="share-social-outline" size={20} color={COLORS.white} />
+                <Text style={styles.actionButtonText}>Compartir</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.downloadButton} onPress={handleDownload}>
+                <Icon name="download-outline" size={20} color={COLORS.white} />
+                <Text style={styles.actionButtonText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.newButton} onPress={handleCloseQR}>
+              <Icon name="add-circle-outline" size={20} color={COLORS.white} />
+              <Text style={styles.actionButtonText}>  Nueva Invitacion</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      ) : null}
+
       <BottomNav selectedTab={selectedTab} navigation={navigation} />
     </SafeAreaView>
   );
@@ -208,99 +240,133 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: SIZES.fontSizeTitle,
-    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
     color: COLORS.black,
   },
-  form: {
+  formContainer: {
     padding: SIZES.padding,
+  },
+  form: {
     backgroundColor: COLORS.white,
-    marginHorizontal: SIZES.margin,
+    padding: 20,
     borderRadius: SIZES.borderRadius,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
-    marginVertical: SIZES.margin,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 6,
+    marginTop: 10,
   },
   input: {
-    backgroundColor: "#F0F0F0",
-    padding: 10,
+    backgroundColor: "#F5F5F5",
+    padding: 12,
     borderRadius: 8,
-    marginBottom: 10,
+    marginBottom: 5,
     color: COLORS.black,
     fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
   submitButton: {
     backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 8,
     alignItems: "center",
+    marginTop: 20,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: COLORS.white,
     fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Bold",
     fontWeight: "bold",
   },
-  qrModal: {
-    flex: 1,
+  qrScrollContainer: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    padding: SIZES.padding,
   },
   qrContainer: {
     backgroundColor: COLORS.white,
-    padding: 20,
-    borderRadius: 10,
+    padding: 25,
+    borderRadius: 15,
     alignItems: "center",
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    width: "100%",
   },
   qrTitle: {
-    fontSize: SIZES.fontSizeTitle,
-    fontFamily: "Roboto-Bold",
+    fontSize: 20,
+    fontWeight: "bold",
     color: COLORS.black,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  qrSubtitle: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginTop: 5,
     marginBottom: 20,
+    textAlign: "center",
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-    width: "80%",
+  qrImage: {
+    width: 260,
+    height: 260,
+    marginVertical: 10,
   },
-  shareButton: {
-    backgroundColor: COLORS.secondary,
-    padding: 10,
-    borderRadius: 5,
-    flex: 1,
-    alignItems: "center",
-    marginRight: 10,
-  },
-  shareButtonText: {
-    color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
-    fontWeight: "bold",
-  },
-  closeButton: {
-    backgroundColor: COLORS.primary,
-    padding: 10,
-    borderRadius: 5,
-    flex: 1,
-    alignItems: "center",
-  },
-  closeButtonText: {
-    color: COLORS.white,
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
-    fontWeight: "bold",
-  },
-  message: {
-    fontSize: SIZES.fontSizeBody,
-    fontFamily: "Roboto-Regular",
+  qrNote: {
+    fontSize: 12,
     color: COLORS.gray,
     textAlign: "center",
-    marginTop: 50,
+    marginTop: 10,
+    fontStyle: "italic",
+  },
+  actionButtons: {
+    flexDirection: "row",
+    marginTop: 20,
+    gap: 12,
+  },
+  shareButton: {
+    backgroundColor: "#25D366",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  downloadButton: {
+    backgroundColor: COLORS.secondary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  newButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  actionButtonText: {
+    color: COLORS.white,
+    fontSize: SIZES.fontSizeBody,
+    fontWeight: "bold",
   },
 });
