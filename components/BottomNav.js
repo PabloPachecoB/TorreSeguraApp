@@ -12,7 +12,7 @@ const TABS = [
     label: "Home",
     icon: "home-outline",
     activeIcon: "home",
-    action: (navigation, { username, role }) => navigation.navigate("Home", { username, role }),
+    action: (navigation) => navigation.navigate("Home"),
   },
   {
     id: "notifications",
@@ -23,13 +23,13 @@ const TABS = [
   },
 ];
 
-export default function BottomNav({ navigation, role, username }) {
+export default function BottomNav({ navigation }) {
   const { selectedTab, setSelectedTab } = useNavigationContext();
   const insets = useSafeAreaInsets();
 
   const handleTabPress = (tab) => {
     setSelectedTab(tab.id);
-    tab.action(navigation, { username, role });
+    tab.action(navigation);
   };
 
   return (

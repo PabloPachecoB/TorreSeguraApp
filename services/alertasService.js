@@ -12,6 +12,16 @@ export async function listarAlertas({ userId } = {}) {
   }
 }
 
+export async function listarAlertasEdificio() {
+  try {
+    const response = await api.get("/alertas/edificio/");
+    return response.data;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+}
+
 export async function crearAlerta({ tipo, descripcion }) {
   try {
     const response = await api.post("/alertas/crear/", { tipo, descripcion });
@@ -47,3 +57,4 @@ export async function obtenerAlertasNuevas(since) {
     return [];
   }
 }
+
