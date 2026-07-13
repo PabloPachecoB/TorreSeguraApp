@@ -60,3 +60,7 @@ ehthumbs.db
 .env
 .env.local
 .env.*.local
+
+# claude
+.claude/
+CLAUDE.md
