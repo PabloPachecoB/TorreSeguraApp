@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import Icon from "@expo/vector-icons/Ionicons";
 import Card from "../components/Card";
-import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 import { getMenuByRole } from "../services/menuService";
@@ -42,7 +41,6 @@ const sortMenuItems = (items) => {
 
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useUserContext();
-  const { selectedTab, setSelectedTab } = useNavigationContext();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,14 +49,6 @@ export default function HomeScreen({ navigation }) {
   const [alertMessage, setAlertMessage] = useState("");
   const username = user?.username || "Usuario";
   const role = user?.role || user?.rol?.nombre || "Rol";
-
-  // Marcar tab "home" como activo al enfocar esta pantalla
-  useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", () => {
-      setSelectedTab("home");
-    });
-    return unsubscribe;
-  }, [navigation, setSelectedTab]);
 
   useEffect(() => {
     if (!role) return;

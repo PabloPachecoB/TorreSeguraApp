@@ -9,14 +9,13 @@ import {
   SafeAreaView,
   TextInput,
   Modal,
-  Image,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
-import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
 import { crearAlerta } from "../services/alertasService";
 
@@ -30,26 +29,10 @@ const alertTypes = [
 ];
 
 export default function AlertScreen({ navigation }) {
-  const { selectedTab } = useNavigationContext();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [description, setDescription] = useState("");
-
-  // Guardar una notificación en AsyncStorage
-  const saveNotification = async (message) => {
-    try {
-      const storedNotifications = await AsyncStorage.getItem("notifications");
-      const notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
-      const newNotification = {
-        message,
-        date: new Date().toISOString(),
-      };
-      notifications.push(newNotification);
-      await AsyncStorage.setItem("notifications", JSON.stringify(notifications));
-    } catch (error) {
-      console.error("Error al guardar notificación:", error);
-    }
-  };
+  const [sending, setSending] = useState(false);
 
   const handleAlertPress = (alert) => {
     setSelectedAlert(alert);
@@ -57,28 +40,32 @@ export default function AlertScreen({ navigation }) {
   };
 
   const handleSendAlert = async () => {
+    if (sending) return;
     if (!description.trim()) {
       Alert.alert("Error", "Por favor, describe el problema antes de enviar la alerta.");
       return;
     }
 
+    setSending(true);
     try {
       await crearAlerta({
         tipo: selectedAlert.title,
         descripcion: description,
       });
 
-      saveNotification(`Alerta enviada: ${selectedAlert.title} - ${description}`);
       Alert.alert("Éxito", "Alerta enviada correctamente.");
       setModalVisible(false);
       setDescription("");
       setSelectedAlert(null);
     } catch (error) {
       Alert.alert("Error", error.message || "No se pudo enviar la alerta.");
+    } finally {
+      setSending(false);
     }
   };
 
   const handleCloseModal = () => {
+    if (sending) return;
     setModalVisible(false);
     setDescription("");
     setSelectedAlert(null);
@@ -117,10 +104,13 @@ export default function AlertScreen({ navigation }) {
         visible={modalVisible}
         onRequestClose={handleCloseModal}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>
-              Seguro quieres inter un {selectedAlert?.title.toLowerCase()}
+              ¿Seguro que quieres reportar "{selectedAlert?.title}"?
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -129,19 +119,30 @@ export default function AlertScreen({ navigation }) {
               value={description}
               onChangeText={setDescription}
               multiline
+              editable={!sending}
             />
             <View style={styles.modalButtonContainer}>
-              <TouchableOpacity style={styles.alertButton} onPress={handleSendAlert}>
-                <Text style={styles.alertButtonText}>Alertar</Text>
+              <TouchableOpacity
+                style={[styles.alertButton, sending && styles.buttonDisabled]}
+                onPress={handleSendAlert}
+                disabled={sending}
+              >
+                <Text style={styles.alertButtonText}>
+                  {sending ? "Enviando..." : "Alertar"}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.backButton} onPress={handleCloseModal}>
-                <Text style={styles.backButtonText}>Atras</Text>
+              <TouchableOpacity
+                style={[styles.backButton, sending && styles.buttonDisabled]}
+                onPress={handleCloseModal}
+                disabled={sending}
+              >
+                <Text style={styles.backButtonText}>Atrás</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-      <BottomNav selectedTab={selectedTab} navigation={navigation} />
+      <BottomNav navigation={navigation} />
     </SafeAreaView>
   );
 }
@@ -257,5 +258,8 @@ const styles = StyleSheet.create({
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Bold",
     fontWeight: "bold",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

@@ -2,7 +2,7 @@
 import React, { useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import Icon from "@expo/vector-icons/Ionicons";
-import { useNavigationContext } from "../context/NavigationContext";
+import { useRoute } from "@react-navigation/native";
 import { COLORS, SIZES } from "../constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +12,7 @@ const TABS = [
     label: "Home",
     icon: "home-outline",
     activeIcon: "home",
+    route: "Home",
     action: (navigation) => navigation.navigate("Home"),
   },
   {
@@ -19,18 +20,16 @@ const TABS = [
     label: "Notificaciones",
     icon: "notifications-outline",
     activeIcon: "notifications",
+    route: "Notifications",
     action: (navigation) => navigation.navigate("Notifications"),
   },
 ];
 
 export default function BottomNav({ navigation }) {
-  const { selectedTab, setSelectedTab } = useNavigationContext();
+  // El tab activo se deriva de la ruta actual: nunca se desincroniza
+  // al navegar con goBack ni al entrar por rutas que no son tabs.
+  const route = useRoute();
   const insets = useSafeAreaInsets();
-
-  const handleTabPress = (tab) => {
-    setSelectedTab(tab.id);
-    tab.action(navigation);
-  };
 
   return (
     <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
@@ -38,8 +37,8 @@ export default function BottomNav({ navigation }) {
         <TabButton
           key={tab.id}
           tab={tab}
-          isActive={selectedTab === tab.id}
-          onPress={() => handleTabPress(tab)}
+          isActive={route.name === tab.route}
+          onPress={() => tab.action(navigation)}
         />
       ))}
     </View>
