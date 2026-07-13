@@ -85,13 +85,14 @@ export default function LoginScreen({ navigation }) {
         refresh,
       });
 
+      // reset (no replace): limpia Welcome/Login de la pila para que el
+      // botón atrás del sistema no regrese al onboarding estando logueado
       if (apiUser.rol?.nombre === ROLE_VIGILANTE) {
-        navigation.replace("Visitantes");
-        return;
-      } else if (apiUser.rol?.nombre === ROLE_RESIDENTE) {
-        navigation.replace("Home");
+        navigation.reset({ index: 0, routes: [{ name: "Visitantes" }] });
         return;
       }
+      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+      return;
     } catch (error) {
       // console.error("Error en login:", error.message);
       setErrorMsg(error.message);

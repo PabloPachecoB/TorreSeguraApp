@@ -18,7 +18,6 @@ import {
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
-import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 import { ROLES } from "../constants/roles";
@@ -100,13 +99,13 @@ const getAuthorName = (info) => {
 // ─── Componente principal ────────────────────────────────────────────
 
 export default function NotificationsScreen({ navigation }) {
-  const { setSelectedTab } = useNavigationContext();
   const { user } = useUserContext();
   const [activeTab, setActiveTab] = useState("alertas");
   const [alertas, setAlertas] = useState([]);
   const [anuncios, setAnuncios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [votingId, setVotingId] = useState(null); // ID de anuncio que se está votando
 
   // Modal crear anuncio
@@ -127,11 +126,6 @@ export default function NotificationsScreen({ navigation }) {
   const canCreateVotacion = isGerente || userRole === "Administrador";
 
   useEffect(() => {
-    const unsub = navigation.addListener("focus", () => setSelectedTab("notifications"));
-    return unsub;
-  }, [navigation, setSelectedTab]);
-
-  useEffect(() => {
     if (!user || !user.username || !user.role) navigation.replace("Login");
   }, [user, navigation]);
 
@@ -144,8 +138,10 @@ export default function NotificationsScreen({ navigation }) {
         const data = await listarAnuncios();
         setAnuncios(Array.isArray(data) ? data : []);
       }
+      setLoadError(false);
     } catch (e) {
       if (__DEV__) console.warn("Error cargando:", e?.message);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -398,6 +394,20 @@ export default function NotificationsScreen({ navigation }) {
     </View>
   );
 
+  const ErrorState = () => (
+    <View style={styles.emptyContainer}>
+      <Icon name="cloud-offline-outline" size={60} color={COLORS.border} />
+      <Text style={styles.emptyTitle}>No se pudo cargar</Text>
+      <Text style={styles.emptySubtitle}>Revisa tu conexión e intenta de nuevo.</Text>
+      <TouchableOpacity
+        style={styles.retryButton}
+        onPress={() => { setLoading(true); loadData(); }}
+      >
+        <Text style={styles.retryButtonText}>Reintentar</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (!user || !user.username || !user.role) return null;
 
   // ─── Render ────────────────────────────────────────────────────────
@@ -444,7 +454,7 @@ export default function NotificationsScreen({ navigation }) {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
-          ListEmptyComponent={<EmptyState icon="shield-checkmark-outline" title="Sin alertas" subtitle="No hay alertas registradas en tu edificio." />}
+          ListEmptyComponent={loadError ? <ErrorState /> : <EmptyState icon="shield-checkmark-outline" title="Sin alertas" subtitle="No hay alertas registradas en tu edificio." />}
         />
       ) : (
         <FlatList
@@ -453,7 +463,7 @@ export default function NotificationsScreen({ navigation }) {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
-          ListEmptyComponent={<EmptyState icon="newspaper-outline" title="Sin anuncios" subtitle="No hay anuncios publicados en tu edificio." />}
+          ListEmptyComponent={loadError ? <ErrorState /> : <EmptyState icon="newspaper-outline" title="Sin anuncios" subtitle="No hay anuncios publicados en tu edificio." />}
         />
       )}
 
@@ -706,6 +716,11 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: "center", paddingTop: 80 },
   emptyTitle: { fontSize: SIZES.fontSizeSubtitle, fontFamily: "Roboto-Bold", color: COLORS.gray, marginTop: 16 },
   emptySubtitle: { fontSize: SIZES.fontSizeBody, fontFamily: "Roboto-Regular", color: COLORS.gray, marginTop: 6, textAlign: "center", paddingHorizontal: 40 },
+  retryButton: {
+    marginTop: 16, backgroundColor: COLORS.primary,
+    paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8,
+  },
+  retryButtonText: { color: COLORS.white, fontFamily: "Roboto-Bold", fontWeight: "bold", fontSize: SIZES.fontSizeBody },
 
   // FAB
   fab: {
