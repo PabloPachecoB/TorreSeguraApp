@@ -1,6 +1,8 @@
 # TorreSegura
 
-Aplicación móvil (React Native + Expo) para la gestión de seguridad de un edificio/condominio: control de visitantes, acceso por código QR, áreas comunes, alertas/notificaciones y pagos. Soporta tres roles: **Vigilante**, **Residente** y **Gerente**.
+Aplicación móvil (React Native + Expo) para la gestión de seguridad del edificio/condominio: control de visitantes, acceso por código QR, áreas comunes, alertas/notificaciones y pagos. Contempla tres roles: **Vigilante**, **Residente** y **Gerente**.
+
+> Nota: el rol **Gerente** aún no está considerado en el flujo de login (`screens/LoginScreen.js`), por lo que hoy no es posible iniciar sesión con ese rol. Sí está contemplado a nivel de detalle en algunas vistas (menús, permisos, alertas), pendiente de integrarlo en la navegación de acceso.
 
 Este repositorio contiene solo el **frontend**. Se conecta a una API REST separada (backend) mediante la variable `API_BASE`.
 
@@ -67,11 +69,34 @@ utils/                 # Datos de menú por rol, helpers de diseño responsive
 assets/                # Íconos, splash, sonidos, etc.
 ```
 
-Para más detalle de la arquitectura (flujo de autenticación, manejo de tokens, patrón de servicios, etc.), ver [`CLAUDE.md`](./CLAUDE.md).
+## Diseño responsive
+
+`utils/responsive.js` expone helpers para adaptar la UI a pantallas pequeñas (breakpoints en 480/768/1024px de ancho):
+
+- `isSmallDevice` / `isMediumDevice` / `isLargeDevice` — flags según el ancho de pantalla.
+- `responsiveValue(base, smallValue?)` — devuelve un valor distinto en dispositivos pequeños (por defecto, 85% del base).
+- `responsiveFontSize(size)` / `responsivePadding(size)` — variantes de `responsiveValue` para fuente y padding.
+- `responsiveWidth(%)` / `responsiveHeight(%)` — porcentaje del ancho/alto real de pantalla.
+
+Pantallas como `HomeScreen`, `LoginScreen` y el componente `Card` ya usan estos helpers (combinados con `Math.min(...)` para topar tamaños de fuente) para evitar overflow en pantallas ≤ 5". Al tocar esas pantallas o crear nuevas, preferir estos helpers sobre valores fijos en píxeles.
 
 ## Estado del proyecto
 
-El proyecto está en desarrollo activo, no listo para producción. Ver [`ESTADO_ACTUAL_PROYECTO.md`](./ESTADO_ACTUAL_PROYECTO.md) para el diagnóstico funcional y la lista de pendientes antes de pasar a pre-producción (roles inconsistentes, endpoints de pago placeholder, falta de pruebas automatizadas, etc.).
+El proyecto está en desarrollo activo, no listo para producción.
+
+**Funcional:**
+- Navegación: stack registrado correctamente, pantallas accesibles.
+- Autenticación: login con access/refresh token, refresco automático ante 401 y almacenamiento seguro (SecureStore con fallback a AsyncStorage).
+- Home/Menú: arma tarjetas según el rol del usuario autenticado.
+- Visitantes/QR: flujo de creación y verificación de visitas vía QR.
+- Alertas/Notificaciones/Pagos: implementados y conectados a la API.
+
+**Pendientes/riesgos conocidos:**
+- El rol **Gerente** no está contemplado en la navegación post-login (ver `screens/LoginScreen.js`), aunque sí existe en menús y permisos de algunas vistas — ver nota más arriba.
+- Persisten referencias mixtas a nombres de rol en algunas pantallas (`Residente/Vigilante` vs. `propietario/portero`), heredadas de datos de prueba en `utils/users.js`.
+- No hay scripts de `lint` ni `test` configurados — la validación de cambios es manual.
+
+Para el detalle de la arquitectura (flujo de autenticación, manejo de tokens, patrón de servicios, convenciones de estilo, etc.), ver [`CLAUDE.md`](./CLAUDE.md) (uso local para asistentes de código, no versionado en el remoto).
 
 ## Flujo de trabajo
 
