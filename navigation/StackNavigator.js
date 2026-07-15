@@ -13,7 +13,8 @@ import AlertScreen from "../screens/AlertaScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import ListaTotalScreen from '../screens/ListaTotalScreen'
 import WelcomeScreen from "../screens/WelcomeScreen";
-import VisitRequestScreen from '../screens/VisitRequestScreen'; 
+import VisitRequestScreen from '../screens/VisitRequestScreen';
+import ChatScreen from "../screens/ChatScreen";
 
 
 const Stack = createNativeStackNavigator();
@@ -34,6 +35,7 @@ export default function StackNavigator() {
       <Stack.Screen name="PaymentScreen" component={PaymentScreen} options={{headerShown: false}}/>
       <Stack.Screen name="ListaTotalScreen" component={ListaTotalScreen} options={{headerShown: false}}/>
       <Stack.Screen name="VisitRequest" component={VisitRequestScreen} options={{headerShown: false}} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
   );
 }
