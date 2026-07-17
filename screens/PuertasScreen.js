@@ -8,12 +8,14 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TextInput,
 } from "react-native";
 import Icon from "@expo/vector-icons/Ionicons";
 import MainLayout from "../components/MainLayout";
 import CustomAlert from "../components/CustomAlert";
 import { COLORS, SIZES } from "../constants";
-import { listarPuertas, abrirPuerta } from "../services/puertasService";
+import { listarPuertas, abrirPuerta, confirmarApertura } from "../services/puertasService";
 
 const ICON_BY_TIPO = {
   PRINCIPAL: "business-outline",
@@ -53,24 +55,57 @@ export default function PuertasScreen({ navigation }) {
     cargarPuertas();
   }, [cargarPuertas]);
 
+  // HU-04.2: estado del paso de confirmación reforzada
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [confirmAccion, setConfirmAccion] = useState(null); // { accionId, puertaNombre }
+  const [password, setPassword] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
+
   const handleAbrir = useCallback(
     async (puerta) => {
       if (abriendoId) return; // evita doble envío
       setAbriendoId(puerta.id);
       try {
         const res = await abrirPuerta(puerta.id);
-        setAlertSuccess(true);
-        setAlertMessage(res?.mensaje || `${puerta.nombre} abierta correctamente.`);
+        if (res?.requiere_confirmacion) {
+          // Paso 2: pedir la contraseña (confirmación reforzada)
+          setConfirmAccion({ accionId: res.accion_id, puertaNombre: puerta.nombre });
+          setPassword("");
+          setConfirmVisible(true);
+        } else {
+          setAlertSuccess(true);
+          setAlertMessage(res?.mensaje || `${puerta.nombre} abierta correctamente.`);
+          setAlertVisible(true);
+        }
       } catch (err) {
         setAlertSuccess(false);
         setAlertMessage(err.message || "No se pudo abrir la puerta.");
+        setAlertVisible(true);
       } finally {
         setAbriendoId(null);
-        setAlertVisible(true);
       }
     },
     [abriendoId]
   );
+
+  const handleConfirmar = useCallback(async () => {
+    if (!password.trim()) return;
+    setConfirmando(true);
+    try {
+      const res = await confirmarApertura(confirmAccion.accionId, password);
+      setConfirmVisible(false);
+      setAlertSuccess(!!res?.abierta);
+      setAlertMessage(res?.mensaje || (res?.abierta ? "Puerta abierta." : "La puerta no respondió."));
+    } catch (err) {
+      setConfirmVisible(false);
+      setAlertSuccess(false);
+      setAlertMessage(err.message || "No se pudo confirmar la apertura.");
+    } finally {
+      setConfirmando(false);
+      setPassword("");
+      setAlertVisible(true);
+    }
+  }, [confirmAccion, password]);
 
   return (
     <MainLayout navigation={navigation}>
@@ -131,6 +166,53 @@ export default function PuertasScreen({ navigation }) {
           ))}
         </ScrollView>
       )}
+
+      {/* Modal de confirmación reforzada (HU-04.2) */}
+      <Modal
+        animationType="fade"
+        transparent
+        visible={confirmVisible}
+        onRequestClose={() => setConfirmVisible(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmContainer}>
+            <Icon name="shield-checkmark-outline" size={40} color={COLORS.primary} />
+            <Text style={styles.confirmTitle}>Confirmación de seguridad</Text>
+            <Text style={styles.confirmSubtitle}>
+              Para abrir {confirmAccion?.puertaNombre}, reingresa tu contraseña:
+            </Text>
+            <TextInput
+              style={styles.confirmInput}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Contraseña"
+              secureTextEntry
+              autoCapitalize="none"
+              autoFocus
+            />
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!password.trim() || confirmando) && { opacity: 0.5 }]}
+                onPress={handleConfirmar}
+                disabled={!password.trim() || confirmando}
+              >
+                {confirmando ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Abrir puerta</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => { setConfirmVisible(false); setPassword(""); }}
+                disabled={confirmando}
+              >
+                <Text style={styles.confirmCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <CustomAlert
         visible={alertVisible}
@@ -240,5 +322,73 @@ const styles = StyleSheet.create({
     fontSize: SIZES.fontSizeBody,
     fontFamily: "Roboto-Regular",
     color: COLORS.gray,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 24,
+    width: "85%",
+    alignItems: "center",
+  },
+  confirmTitle: {
+    fontSize: SIZES.fontSizeSubtitle,
+    fontFamily: "Roboto-Bold",
+    fontWeight: "bold",
+    color: COLORS.black,
+    marginTop: 10,
+  },
+  confirmSubtitle: {
+    fontSize: SIZES.fontSizeBody,
+    color: COLORS.gray,
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  confirmInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: SIZES.fontSizeBody,
+    marginBottom: 16,
+  },
+  confirmButtons: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-between",
+  },
+  confirmBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  confirmBtnText: {
+    color: "#fff",
+    fontFamily: "Roboto-Bold",
+    fontWeight: "bold",
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  confirmCancelText: {
+    color: COLORS.black,
+    fontFamily: "Roboto-Bold",
+    fontWeight: "bold",
   },
 });
