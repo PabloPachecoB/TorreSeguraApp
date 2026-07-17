@@ -20,7 +20,14 @@ import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
-import { obtenerAreas, crearReserva } from "../services/areasService";
+import { obtenerAreas, crearReserva, obtenerMisReservas, cancelarReserva } from "../services/areasService";
+
+const ESTADO_RESERVA = {
+  confirmada: { label: "Confirmada", color: "#34C759" },
+  pendiente: { label: "Pendiente", color: "#FF9500" },
+  cancelada: { label: "Cancelada", color: "#FF3B30" },
+  completada: { label: "Completada", color: "#5856D6" },
+};
 
 export default function AreasComunesScreen({ navigation, route }) {
   const role = route.params?.role || "propietario";
@@ -38,6 +45,54 @@ export default function AreasComunesScreen({ navigation, route }) {
   const [endHour, setEndHour] = useState(9);
   const [endMinute, setEndMinute] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [reservasModalVisible, setReservasModalVisible] = useState(false);
+  const [misReservas, setMisReservas] = useState([]);
+  const [loadingReservas, setLoadingReservas] = useState(false);
+  const [cancelingId, setCancelingId] = useState(null);
+
+  const userRole = user?.role || user?.rol?.nombre || "";
+
+  const loadMisReservas = useCallback(async () => {
+    setLoadingReservas(true);
+    try {
+      const data = await obtenerMisReservas();
+      setMisReservas(Array.isArray(data) ? data : []);
+    } catch {
+      setMisReservas([]);
+    } finally {
+      setLoadingReservas(false);
+    }
+  }, []);
+
+  const openMisReservas = () => {
+    setReservasModalVisible(true);
+    loadMisReservas();
+  };
+
+  const handleCancelarReserva = (reserva) => {
+    Alert.alert(
+      "Cancelar reserva",
+      `¿Cancelar la reserva de ${reserva.areaNombre} el ${reserva.fecha}?`,
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: async () => {
+            setCancelingId(reserva.id);
+            try {
+              await cancelarReserva(reserva.id);
+              await loadMisReservas();
+            } catch (error) {
+              Alert.alert("Error", error.message || "No se pudo cancelar la reserva.");
+            } finally {
+              setCancelingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const loadAreas = useCallback(async () => {
     try {
@@ -212,7 +267,13 @@ export default function AreasComunesScreen({ navigation, route }) {
           <Icon name="arrow-back-outline" size={30} color={COLORS.black} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Areas Comunes</Text>
-        <View style={{ width: 30 }} />
+        {userRole !== "Vigilante" && role !== "portero" ? (
+          <TouchableOpacity onPress={openMisReservas}>
+            <Icon name="calendar-number-outline" size={28} color={COLORS.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 30 }} />
+        )}
       </View>
 
       <FlatList
@@ -382,6 +443,67 @@ export default function AreasComunesScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      {/* Modal Mis Reservas */}
+      <Modal
+        animationType="fade"
+        transparent
+        visible={reservasModalVisible}
+        onRequestClose={() => setReservasModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: "80%" }]}>
+            <View style={styles.modalHeader}>
+              <Icon name="calendar-number-outline" size={30} color={COLORS.primary} />
+              <Text style={styles.modalTitle}>Mis Reservas</Text>
+            </View>
+            {loadingReservas ? (
+              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 30 }} />
+            ) : misReservas.length === 0 ? (
+              <Text style={styles.emptyText}>No tienes reservas todavía.</Text>
+            ) : (
+              <ScrollView style={{ width: "100%" }} showsVerticalScrollIndicator={false}>
+                {misReservas.map((reserva) => {
+                  const estado = ESTADO_RESERVA[reserva.estado] || { label: reserva.estado, color: COLORS.gray };
+                  const cancelable = reserva.estado === "confirmada" || reserva.estado === "pendiente";
+                  return (
+                    <View key={reserva.id} style={styles.reservaItem}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reservaArea}>{reserva.areaNombre}</Text>
+                        <Text style={styles.reservaFecha}>
+                          {reserva.fecha} · {reserva.hora_inicio?.slice(0, 5)} - {reserva.hora_fin?.slice(0, 5)}
+                        </Text>
+                        <View style={[styles.estadoBadge, { backgroundColor: estado.color }]}>
+                          <Text style={styles.estadoBadgeText}>{estado.label}</Text>
+                        </View>
+                      </View>
+                      {cancelable && (
+                        <TouchableOpacity
+                          style={[styles.cancelarReservaBtn, cancelingId === reserva.id && { opacity: 0.5 }]}
+                          onPress={() => handleCancelarReserva(reserva)}
+                          disabled={cancelingId !== null}
+                        >
+                          {cancelingId === reserva.id ? (
+                            <ActivityIndicator size="small" color={COLORS.white} />
+                          ) : (
+                            <Icon name="trash-outline" size={18} color={COLORS.white} />
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setReservasModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNav selectedTab={selectedTab} navigation={navigation} />
     </SafeAreaView>
   );
@@ -441,6 +563,18 @@ const styles = StyleSheet.create({
   reserveButtonText: { color: COLORS.white, fontSize: SIZES.fontSizeBody, fontFamily: "Roboto-Bold", fontWeight: "bold" },
   cancelButton: { backgroundColor: COLORS.gray, padding: 15, borderRadius: 5, flex: 1, alignItems: "center", marginLeft: 5 },
   cancelButtonText: { color: COLORS.white, fontSize: SIZES.fontSizeBody, fontFamily: "Roboto-Bold", fontWeight: "bold" },
+  reservaItem: {
+    flexDirection: "row", alignItems: "center", backgroundColor: "#F8F9FB",
+    borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border,
+  },
+  reservaArea: { fontSize: SIZES.fontSizeBody, fontFamily: "Roboto-Bold", fontWeight: "bold", color: COLORS.black },
+  reservaFecha: { fontSize: SIZES.fontSizeSmall, color: COLORS.gray, marginTop: 2, marginBottom: 6 },
+  estadoBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  estadoBadgeText: { color: COLORS.white, fontSize: 11, fontFamily: "Roboto-Bold", fontWeight: "bold" },
+  cancelarReservaBtn: {
+    backgroundColor: "#FF3B30", padding: 10, borderRadius: 8, marginLeft: 10,
+    justifyContent: "center", alignItems: "center", minWidth: 40,
+  },
   closeButton: { backgroundColor: COLORS.primary, padding: 15, borderRadius: 5, marginTop: 20, alignItems: "center", width: "50%" },
   closeButtonText: { color: COLORS.white, fontSize: SIZES.fontSizeBody, fontFamily: "Roboto-Bold", fontWeight: "bold" },
 });
