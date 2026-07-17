@@ -10,5 +10,7 @@ export const COLORS = {
   warning: "#FF3B30", // Mantengo tu rojo para advertencias
   success: "#10B981", // Verde para mensajes de éxito (ej. reserva confirmada)
   error: "#EF4444", // Rojo para errores (ligeramente diferente al warning)
+  accent: "#FF9500", // Naranja de avisos. No es un color nuevo: ya se usaba en los
+  // badges del dashboard (utils/menuData.js), aquí solo queda centralizado.
   transparent: "transparent", // Mantengo
 };
