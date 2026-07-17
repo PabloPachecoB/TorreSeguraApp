@@ -12,6 +12,7 @@ import { LogoutIcon } from "../components/Icons";
 import CustomAlert from "../components/CustomAlert";
 
 const MENU_ORDER = [
+  "Puertas",
   "QR o Pass",
   "Habitantes",
   "Visitantes",
@@ -73,6 +74,10 @@ export default function HomeScreen({ navigation }) {
 
   const handleCardPress = useCallback((title) => {
     switch (title) {
+      case "Puertas":
+        navigation.navigate("Puertas");
+        break;
+
       case "Habitantes":
         navigation.navigate("Habitantes");
         break;

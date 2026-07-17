@@ -1,6 +1,7 @@
 // utils/menuData.js
 export const menuData = {
     Vigilante: [
+      { title: "Puertas", number: "", color: "#34C759" },
       { title: "QR o Pass", number: "01", color: "#007BFF" },
       { title: "Habitantes", number: "87", color: "#00FF00" },
       { title: "Visitantes", number: "04", color: "#FF9500" },
@@ -9,6 +10,7 @@ export const menuData = {
       { title: "Alertas", number: "1", color: "#FF3B30", hasWarning: true },
     ],
     Residente: [
+      { title: "Puertas", number: "", color: "#34C759" },
       { title: "Mis Visitantes", number: "03", color: "#007BFF" },
       { title: "Historial Accesos", number: "02", color: "#FF9500" },
       { title: "Áreas Comunes", number: "0", color: "#FF2D55" },
