@@ -14,7 +14,13 @@ import {
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
 import { COLORS, MODO_DEMO_AGENTE } from "../constants";
-import { enviarMensajeAgente, ejecutarAccionAgente } from "../services/agenteService";
+import {
+  enviarMensajeAgente,
+  confirmarAccionAgente,
+  healthAgente,
+} from "../services/agenteService";
+// El simulador se usa SOLO como fallback explícito (health caído o demo manual).
+import { responderMensaje, responderAccion } from "../services/agenteSimulador";
 import { useUserContext } from "../context/UserContext";
 import HistorialDrawer from "../components/HistorialDrawer";
 import TarjetaMensaje from "../components/agente/TarjetaMensaje";
@@ -44,8 +50,12 @@ const horaActual = () =>
     hour12: false,
   });
 
+/** Ids de acción de la tarjeta de resumen. Confirmar es la ÚNICA vía de ejecutar. */
+const ACCION_CONFIRMAR = "confirmar";
+const ACCION_CANCELAR = "cancelar";
+
 /** Mensaje de error con tarjeta de reintento. Nunca finge que la acción salió bien. */
-const mensajeError = (detalle) => ({
+const mensajeError = (detalle, opts = {}) => ({
   id: `e-${Date.now()}`,
   rol: "asistente",
   contenido: "",
@@ -54,10 +64,76 @@ const mensajeError = (detalle) => ({
   tarjeta: {
     tipo: "error",
     mensaje:
+      opts.mensaje ||
       "No pude completar la acción. Verifica tu conexión e intenta de nuevo, o reporta el problema desde el módulo de Alertas.",
     detalle,
+    permiteReintentar: opts.permiteReintentar,
   },
 });
+
+/**
+ * Sintetiza una TarjetaResumen desde la respuesta del agente que pide
+ * confirmación. El resumen textual ya va en la burbuja (`message`); la tarjeta
+ * queda limpia: título por `intent`, aviso de vencimiento y botones.
+ */
+const construirTarjetaResumen = (data) => {
+  const intent = (data?.intent || "").toLowerCase();
+  const meta = intent.includes("reserv")
+    ? { titulo: "Confirmar reserva", icono: "calendar" }
+    : intent.includes("incid")
+    ? { titulo: "Confirmar incidencia", icono: "construct" }
+    : { titulo: "Confirmar acción", icono: "help-circle-outline" };
+
+  const seg = data?.confirmation?.expires_in_seconds;
+  const mins = seg ? Math.max(1, Math.round(seg / 60)) : null;
+
+  return {
+    tipo: "resumen",
+    titulo: meta.titulo,
+    icono: meta.icono,
+    // Sin campos: el detalle vive en la burbuja para no duplicar el texto.
+    campos: [],
+    nota: mins
+      ? `Esta confirmación vence en ~${mins} min. Toca Confirmar para ejecutarla.`
+      : "Toca Confirmar para ejecutar esta acción.",
+    acciones: [
+      { id: ACCION_CONFIRMAR, texto: "Confirmar", variante: "primario", icono: "checkmark" },
+      { id: ACCION_CANCELAR, texto: "Cancelar", variante: "secundario" },
+    ],
+  };
+};
+
+/** Comprobante desde la respuesta de confirmar/ (id y estado REALES del backend). */
+const construirTarjetaComprobante = (data) => {
+  const estadoTexto =
+    data?.resultado?.reservation_status ||
+    data?.resultado?.incident_status ||
+    (data?.estado ? "Ejecutada" : null);
+  // El identificador real puede venir como backend_reference (string) o dentro
+  // de resultado (reservation_id / incident_id). Se toma el primero que llegue.
+  const ref =
+    data?.backend_reference ??
+    data?.resultado?.reservation_id ??
+    data?.resultado?.incident_id;
+
+  return {
+    tipo: "comprobante",
+    titulo: "Comprobante",
+    icono: "checkmark-circle",
+    encabezadoExito:
+      data?.verification_status === "VERIFICADA" ? "Confirmada y verificada" : "Confirmada",
+    estado: estadoTexto ? { texto: estadoTexto, color: COLORS.success } : undefined,
+    campos: [],
+    // Prioriza el id real; si no llegara ninguno, cae al estado como referencia
+    // clara en vez de dejar el comprobante sin dato (nunca un guion suelto).
+    codigo:
+      ref != null
+        ? { etiqueta: "Referencia", valor: `#${ref}` }
+        : estadoTexto
+        ? { etiqueta: "Estado", valor: estadoTexto }
+        : undefined,
+  };
+};
 
 export default function ChatScreen({ navigation }) {
   const { user } = useUserContext();
@@ -72,6 +148,12 @@ export default function ChatScreen({ navigation }) {
   // Ids de los mensajes cuya tarjeta ya se confirmó o canceló: se les ocultan
   // las acciones para no poder confirmar dos veces la misma reserva.
   const [tarjetasResueltas, setTarjetasResueltas] = useState([]);
+
+  // Disponibilidad del agente real. null = comprobando. Cuando está caído (false)
+  // el chat cae al simulador como FALLBACK EXPLÍCITO (badge visible), nunca en
+  // silencio. MODO_DEMO_AGENTE lo fuerza manualmente.
+  const [agenteDisponible, setAgenteDisponible] = useState(null);
+  const usarSimulador = MODO_DEMO_AGENTE || agenteDisponible === false;
 
   // Historial
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -116,6 +198,24 @@ export default function ChatScreen({ navigation }) {
     cargarHistorial();
   }, [cargarHistorial]);
 
+  // Chequeo de salud del agente al montar: decide real vs. fallback simulado.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const salud = await healthAgente();
+        const ok = salud?.healthy === true || salud?.status === "ok";
+        if (vivo) setAgenteDisponible(ok);
+      } catch {
+        // Sin health no arriesgamos el chat real: fallback explícito al simulador.
+        if (vivo) setAgenteDisponible(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   /** Persiste un mensaje en la conversación activa y refresca el listado. */
   const persistirMensaje = useCallback(
     async (mensaje) => {
@@ -130,8 +230,25 @@ export default function ChatScreen({ navigation }) {
     [userId, cargarHistorial]
   );
 
-  /** Agrega la respuesta del asistente (texto + tarjeta opcional) y la persiste. */
-  const agregarRespuesta = useCallback(
+  /** Agrega un mensaje del asistente (texto + tarjeta opcional) y lo persiste. */
+  const agregarMensajeAsistente = useCallback(
+    async (parcial) => {
+      const msgAgente = {
+        id: `a-${Date.now()}`,
+        rol: "asistente",
+        contenido: "",
+        hora: horaActual(),
+        ...parcial,
+      };
+      setMensajes((prev) => [...prev, msgAgente]);
+      await persistirMensaje(msgAgente);
+      return msgAgente;
+    },
+    [persistirMensaje]
+  );
+
+  /** Mapea la respuesta del SIMULADOR (shape { respuesta, tarjeta, estado }). */
+  const agregarRespuestaSimulador = useCallback(
     async (data) => {
       estadoDemoRef.current = data?.estado;
 
@@ -142,17 +259,36 @@ export default function ChatScreen({ navigation }) {
         }
       }
 
-      const msgAgente = {
-        id: `a-${Date.now()}`,
-        rol: "asistente",
+      await agregarMensajeAsistente({
         contenido: data?.respuesta || "Recibido. Estoy procesando tu solicitud.",
-        hora: horaActual(),
         tarjeta: data?.tarjeta,
-      };
-      setMensajes((prev) => [...prev, msgAgente]);
-      await persistirMensaje(msgAgente);
+      });
     },
-    [userId, persistirMensaje]
+    [userId, agregarMensajeAsistente]
+  );
+
+  /** Mapea la respuesta del AGENTE REAL (shape { thread_id, message, ... }). */
+  const agregarRespuestaReal = useCallback(
+    async (data) => {
+      // Conserva el hilo del agente entre turnos (memoria de la conversación).
+      if (data?.thread_id) {
+        agenteConversacionIdRef.current = data.thread_id;
+        if (userId && conversacionIdRef.current) {
+          await guardarIdAgente(userId, conversacionIdRef.current, data.thread_id);
+        }
+      }
+
+      const requiereConfirmar =
+        data?.requires_confirmation === true && data?.action_id != null;
+
+      await agregarMensajeAsistente({
+        contenido: data?.message || "Recibido.",
+        tarjeta: requiereConfirmar ? construirTarjetaResumen(data) : undefined,
+        // El action_id viaja en el mensaje: es lo que confirmará el botón.
+        accionAgenteId: requiereConfirmar ? data.action_id : undefined,
+      });
+    },
+    [userId, agregarMensajeAsistente]
   );
 
   /** Crea la conversación local si es el primer mensaje del chat. */
@@ -194,12 +330,18 @@ export default function ChatScreen({ navigation }) {
       ultimoIntentoRef.current = { tipo: "mensaje", mensaje };
 
       try {
-        const data = await enviarMensajeAgente({
-          mensaje,
-          conversacionId: agenteConversacionIdRef.current,
-          estadoDemo: estadoDemoRef.current,
-        });
-        await agregarRespuesta(data);
+        if (usarSimulador) {
+          const data = await responderMensaje({ mensaje, estado: estadoDemoRef.current });
+          await agregarRespuestaSimulador(data);
+        } else {
+          // "sí, confirma" es solo otro mensaje: el agente decide, la app NO
+          // confirma por texto. La confirmación real es el botón de la tarjeta.
+          const data = await enviarMensajeAgente({
+            message: mensaje,
+            threadId: agenteConversacionIdRef.current,
+          });
+          await agregarRespuestaReal(data);
+        }
       } catch (error) {
         // Los errores no se guardan en el historial: son de esta sesión.
         setMensajes((prev) => [...prev, mensajeError(error?.message)]);
@@ -208,7 +350,14 @@ export default function ChatScreen({ navigation }) {
         scrollAlFinal();
       }
     },
-    [asegurarConversacion, persistirMensaje, agregarRespuesta, scrollAlFinal]
+    [
+      asegurarConversacion,
+      persistirMensaje,
+      agregarRespuestaSimulador,
+      agregarRespuestaReal,
+      usarSimulador,
+      scrollAlFinal,
+    ]
   );
 
   const handleEnviar = () => {
@@ -234,21 +383,77 @@ export default function ChatScreen({ navigation }) {
   };
 
   const ejecutarAccion = async (mensajeId, actionId) => {
+    // Cancelar es local: no hay endpoint de rechazo y no debe tocar el backend.
+    // Solo cierra la tarjeta para que no se pueda confirmar después.
+    if (actionId === ACCION_CANCELAR) {
+      setTarjetasResueltas((prev) => [...prev, mensajeId]);
+      await agregarMensajeAsistente({
+        contenido: "Listo, cancelé esa acción. ¿Necesitas algo más?",
+      });
+      scrollAlFinal();
+      return;
+    }
+
     setEnviando(true);
     // La tarjeta se marca resuelta apenas se toca: si el usuario puede tocar
-    // "Confirmar" dos veces mientras carga, reserva dos veces.
+    // "Confirmar" dos veces mientras carga, confirma dos veces.
     setTarjetasResueltas((prev) => [...prev, mensajeId]);
     ultimoIntentoRef.current = { tipo: "accion", mensajeId, actionId };
     scrollAlFinal();
 
     try {
-      const data = await ejecutarAccionAgente({
-        actionId,
-        estadoDemo: estadoDemoRef.current,
-        usuarioId: userId,
-        conversacionId: agenteConversacionIdRef.current,
-      });
-      await agregarRespuesta(data);
+      if (usarSimulador) {
+        const data = await responderAccion({
+          actionId,
+          estado: estadoDemoRef.current,
+          usuarioId: userId,
+        });
+        await agregarRespuestaSimulador(data);
+      } else if (actionId === ACCION_CONFIRMAR) {
+        // ÚNICA vía de confirmar: el botón → endpoint dedicado con el action_id.
+        const msg = mensajes.find((m) => m.id === mensajeId);
+        const accionAgenteId = msg?.accionAgenteId;
+        if (accionAgenteId == null) {
+          throw new Error("No encontré la acción a confirmar. Vuelve a pedir la reserva.");
+        }
+        try {
+          const data = await confirmarAccionAgente(accionAgenteId);
+          const ejecutada =
+            data?.estado === "EJECUTADA" || data?.resultado?.status === "success";
+          if (ejecutada) {
+            await agregarMensajeAsistente({
+              contenido: "¡Listo! La acción se ejecutó y quedó registrada.",
+              tarjeta: construirTarjetaComprobante(data),
+            });
+          } else {
+            // 200 pero no ejecutada (rechazada/vencida): error, nunca comprobante.
+            setMensajes((prev) => [
+              ...prev,
+              mensajeError(null, {
+                mensaje:
+                  data?.mensaje ||
+                  "La acción no se pudo ejecutar. Vuelve a pedirla e inténtalo de nuevo.",
+                permiteReintentar: false,
+              }),
+            ]);
+          }
+        } catch (err) {
+          // Vencimiento / acción ya no válida: mensaje claro, sin reintento inútil.
+          if ([400, 404, 409, 410].includes(err?.status)) {
+            setMensajes((prev) => [
+              ...prev,
+              mensajeError(err?.message, {
+                mensaje:
+                  "La confirmación venció o ya no es válida. Vuelve a pedir la acción al asistente.",
+                permiteReintentar: false,
+              }),
+            ]);
+          } else {
+            throw err; // otros errores → tarjeta de error genérica (con reintento).
+          }
+        }
+      }
+      // En modo real no hay otras acciones que el agente dispare.
     } catch (error) {
       setMensajes((prev) => [...prev, mensajeError(error?.message)]);
     } finally {
@@ -367,15 +572,27 @@ export default function ChatScreen({ navigation }) {
           <Text style={styles.headerSubtitulo}>Reporta incidencias del edificio</Text>
         </View>
 
-        {/* Con el simulador activo hay que decirlo, no esconderlo. */}
-        {MODO_DEMO_AGENTE ? (
+        {/* Con el simulador activo hay que decirlo, no esconderlo. El fallback
+            por agente caído se marca distinto ("Sin conexión") para que se
+            entienda que no es el asistente real. */}
+        {usarSimulador ? (
           <View
             style={styles.badgeDemo}
             accessible
-            accessibilityLabel="Modo demostración: las respuestas del asistente son simuladas"
+            accessibilityLabel={
+              agenteDisponible === false
+                ? "Asistente no disponible: respuestas simuladas de respaldo"
+                : "Modo demostración: las respuestas del asistente son simuladas"
+            }
           >
-            <Icon name="flask-outline" size={12} color={COLORS.white} />
-            <Text style={styles.badgeDemoTexto}>Demo</Text>
+            <Icon
+              name={agenteDisponible === false ? "cloud-offline-outline" : "flask-outline"}
+              size={12}
+              color={COLORS.white}
+            />
+            <Text style={styles.badgeDemoTexto}>
+              {agenteDisponible === false ? "Sin conexión" : "Demo"}
+            </Text>
           </View>
         ) : (
           <Icon name="chatbubble-ellipses" size={22} color={COLORS.secondary} />

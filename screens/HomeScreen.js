@@ -6,6 +6,10 @@ import Card from "../components/Card";
 import { useUserContext } from "../context/UserContext";
 import { COLORS, SIZES } from "../constants";
 import { getMenuByRole } from "../services/menuService";
+import { getMisIncidencias } from "../services/incidenciasService";
+import { obtenerMisReservas } from "../services/areasService";
+import { obtenerCuotasPendientes } from "../services/pagosService";
+import { listarAlertas } from "../services/alertasService";
 import MainLayout from "../components/MainLayout";
 import IconButton from "../components/IconButton";
 import { LogoutIcon } from "../components/Icons";
@@ -39,10 +43,30 @@ const sortMenuItems = (items) => {
   });
 };
 
+/** Cuenta defensiva: array, página DRF ({results}/{count}) o vacío. */
+const contar = (data) => {
+  if (Array.isArray(data)) return data.length;
+  if (Array.isArray(data?.results)) return data.results.length;
+  if (typeof data?.count === "number") return data.count;
+  return 0;
+};
+
+/** Reservas activas: excluye las canceladas o completadas. */
+const contarReservasActivas = (data) => {
+  const lista = Array.isArray(data) ? data : data?.results || [];
+  return lista.filter((r) => {
+    const e = (r?.estado || "").toLowerCase();
+    return e !== "cancelada" && e !== "completada";
+  }).length;
+};
+
 
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useUserContext();
   const [menuItems, setMenuItems] = useState([]);
+  // Contadores reales de los badges, por título. Se llenan de forma NO bloqueante
+  // (el Home no espera por ellos) y cada uno falla en silencio → 0.
+  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [alertVisible, setAlertVisible] = useState(false);
@@ -71,6 +95,30 @@ export default function HomeScreen({ navigation }) {
     fetchMenu();
   }, [role]);
 
+  // Contadores reales de los badges. Reutiliza los services ya conectados; cada
+  // uno es independiente y no bloquea el render (el número aparece cuando llega).
+  // Si una cuenta falla, se muestra 0 — nunca rompe el Home ni el resto de badges.
+  useEffect(() => {
+    if (!role) return;
+    let vivo = true;
+    const fijar = (title, valor) =>
+      vivo && setCounts((prev) => ({ ...prev, [title]: valor }));
+
+    const cargar = (title, promesa, contador) =>
+      promesa
+        .then((data) => fijar(title, contador(data)))
+        .catch(() => fijar(title, 0));
+
+    cargar("Incidencias", getMisIncidencias(), contar);
+    cargar("Áreas Comunes", obtenerMisReservas(), contarReservasActivas);
+    cargar("Pagos", obtenerCuotasPendientes(), contar);
+    cargar("Alertas", listarAlertas({ userId: user?.id ?? user?.username }), contar);
+
+    return () => {
+      vivo = false;
+    };
+  }, [role, user?.id, user?.username]);
+
 
   const handleCardPress = useCallback((title) => {
     switch (title) {
@@ -91,6 +139,10 @@ export default function HomeScreen({ navigation }) {
 
       case "Áreas Comunes":
         navigation.navigate("AreasComunes");
+        break;
+
+      case "Incidencias":
+        navigation.navigate("Incidencias");
         break;
 
       case "QR o Pass": // Añadimos el caso para "QR o Pass"
@@ -189,7 +241,10 @@ export default function HomeScreen({ navigation }) {
               <Card
                 key={index}
                 title={item.title}
-                number={item.number}
+                // Los contadores conectados (Incidencias, Áreas Comunes, Pagos,
+                // Alertas) usan el valor real cuando llega; el resto conserva su
+                // valor por ahora (no hay service de conteo con semántica de badge).
+                number={counts[item.title] ?? item.number}
                 color={item.color}
                 hasWarning={item.hasWarning}
                 onPress={() => handleCardPress(item.title)}

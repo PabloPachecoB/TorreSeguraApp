@@ -16,6 +16,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import VisitRequestScreen from '../screens/VisitRequestScreen';
 import ChatScreen from "../screens/ChatScreen";
 import PuertasScreen from "../screens/PuertasScreen";
+import IncidenciasScreen from "../screens/IncidenciasScreen";
 
 
 const Stack = createNativeStackNavigator();
@@ -38,6 +39,7 @@ export default function StackNavigator() {
       <Stack.Screen name="VisitRequest" component={VisitRequestScreen} options={{headerShown: false}} />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Puertas" component={PuertasScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Incidencias" component={IncidenciasScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
   );
 }
