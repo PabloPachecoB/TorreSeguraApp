@@ -15,6 +15,7 @@ import ListaTotalScreen from '../screens/ListaTotalScreen'
 import WelcomeScreen from "../screens/WelcomeScreen";
 import VisitRequestScreen from '../screens/VisitRequestScreen';
 import ChatScreen from "../screens/ChatScreen";
+import IncidenciasScreen from "../screens/IncidenciasScreen";
 
 
 const Stack = createNativeStackNavigator();
@@ -36,6 +37,7 @@ export default function StackNavigator() {
       <Stack.Screen name="ListaTotalScreen" component={ListaTotalScreen} options={{headerShown: false}}/>
       <Stack.Screen name="VisitRequest" component={VisitRequestScreen} options={{headerShown: false}} />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Incidencias" component={IncidenciasScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
   );
 }

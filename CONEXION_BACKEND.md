@@ -2,6 +2,19 @@
 
 Este documento es el mapa para conectar el asistente cuando existan los endpoints reales.
 
+## Estado de conexión (actualizado 2026-07-17)
+
+| Flujo | Estado | Capa de datos | Notas |
+|---|---|---|---|
+| **Reservas de áreas comunes (RES-04)** | ✅ **CONECTADO** | `services/areasService.js` → `screens/AreasComunesScreen.js` | Endpoints REST directos `/areas-comunes/…` (no pasa por el agente). `getAreas`, `disponibilidad` (slots + alternativas), `reservar`, `mis-reservas`, `cancelar`. El comprobante muestra el `id`/`estado` reales del backend (ya no el código inventado). Errores 400/403/404/409 con `TarjetaError`. |
+| **Incidencias (INC-06)** | ✅ **CONECTADO** | `services/incidenciasService.js` (nuevo) → `screens/IncidenciasScreen.js` (nueva) | `multipart/form-data` con evidencia (campo `evidencias` repetido por archivo). Detalle con timeline (`eventos`) y foto protegida (`url_descarga` + header `Authorization`). |
+| **Agente conversacional (Huascar)** | ✅ **CONECTADO** (2026-07-18) | `services/agenteService.js` → `screens/ChatScreen.js` | Endpoints reales: `GET /agente/acciones/health/`, `POST /agente/acciones/chat/` (`message`/`thread_id`), `POST /agente/acciones/<action_id>/confirmar/`. `ChatScreen` conserva el `thread_id` entre turnos, sintetiza `TarjetaResumen` (botón **Confirmar** → endpoint dedicado) desde `confirmation`, `TarjetaComprobante` desde `backend_reference`/`resultado`, y `TarjetaError` en fallo/vencimiento. **La confirmación NUNCA se dispara por un "sí" de texto**, solo por el botón. `MODO_DEMO_AGENTE = false`; el simulador quedó como **fallback explícito** si `health` devuelve caído (badge "Sin conexión" visible). |
+
+> ⚠️ Lo de abajo (§7, §9) quedó escrito **antes** de que existiera el backend real.
+> Se conservan como referencia histórica; el estado vigente es la tabla de arriba.
+> En particular: **`reservasService.js` sigue siendo mock y lo usa solo el
+> simulador del agente** — la reserva real vive en `areasService.js`.
+
 **La regla:** todo el acceso a datos vive en `services/`. Cuando lleguen los endpoints, solo hay que reemplazar el cuerpo de esas funciones. **Ningún componente de UI necesita cambiar.**
 
 Cada punto mock lleva un comentario `// TODO: conectar endpoint real` en el código, con el `api.*` de ejemplo ya escrito como comentario.
