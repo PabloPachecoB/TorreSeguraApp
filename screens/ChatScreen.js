@@ -1,7 +1,6 @@
 // screens/ChatScreen.js
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -10,15 +9,31 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
+import * as ImagePicker from "expo-image-picker";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
 import { COLORS, MODO_DEMO_AGENTE } from "../constants";
 import {
   enviarMensajeAgente,
+  enviarInteraccionAgente,
   confirmarAccionAgente,
+  rechazarAccionAgente,
+  obtenerAccionPendienteAgente,
   healthAgente,
+  enviarAudioAgente,
 } from "../services/agenteService";
+import { agregarEvidenciasIncidencia } from "../services/incidenciasService";
+import { prepararAudioParaQwen } from "../services/voiceAsset";
 // El simulador se usa SOLO como fallback explícito (health caído o demo manual).
 import { responderMensaje, responderAccion } from "../services/agenteSimulador";
 import { useUserContext } from "../context/UserContext";
@@ -39,7 +54,7 @@ const MENSAJE_BIENVENIDA = {
   id: "bienvenida",
   rol: "asistente",
   contenido:
-    "¡Hola! Soy el asistente de TorreSegura. Cuéntame qué problema encontraste en el edificio (por ejemplo: \"hay una fuga de agua en el pasillo del piso 3\") y me encargo de gestionarlo.",
+    "¡Hola! Soy el asistente de TorreSegura. Puedo ayudarte con incidencias, pagos, visitas, reservas y espacios de la residencia. ¿Qué necesitas?",
 };
 
 /** "09:41" — el formato de hora que muestran las burbujas. */
@@ -135,6 +150,37 @@ const construirTarjetaComprobante = (data) => {
   };
 };
 
+/** Evita duplicar en texto las listas que la UI ya presenta como tarjetas. */
+const contenidoRespuestaReal = (data) => {
+  const message = data?.message || "Recibido.";
+  if (!data?.presentation) return message;
+  return message.split("\n")[0].trim();
+};
+
+/** Reconstruye la confirmación cuando el request terminó después del timeout. */
+const respuestaDesdeAccionPendiente = (accion, threadId) => {
+  const payload = accion?.payload || {};
+  const esReserva = accion?.tipo_accion === "RESERVA_CREAR";
+  const detalleReserva = esReserva
+    ? ` para el ${payload.date} de ${payload.start_time} a ${payload.end_time}`
+    : "";
+  return {
+    thread_id: threadId,
+    message:
+      `La solicitud terminó de procesarse${detalleReserva} y está lista para confirmar.`,
+    intent: esReserva ? "reservation" : "general",
+    status: "awaiting_confirmation",
+    requires_confirmation: true,
+    action_id: accion.id,
+    confirmation: {
+      type: "action_confirmation",
+      action_id: accion.id,
+      requires_password: accion.tipo_accion === "CERRADURA_ABRIR",
+    },
+    presentation: null,
+  };
+};
+
 export default function ChatScreen({ navigation }) {
   const { user } = useUserContext();
   // El backend futuro devolverá un id propio; hoy la cuenta se identifica por
@@ -148,6 +194,11 @@ export default function ChatScreen({ navigation }) {
   // Ids de los mensajes cuya tarjeta ya se confirmó o canceló: se les ocultan
   // las acciones para no poder confirmar dos veces la misma reserva.
   const [tarjetasResueltas, setTarjetasResueltas] = useState([]);
+  const [evidenciasPendientes, setEvidenciasPendientes] = useState([]);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  const grabando = recorderState.isRecording;
+  const [procesandoVoz, setProcesandoVoz] = useState(false);
 
   // Disponibilidad del agente real. null = comprobando. Cuando está caído (false)
   // el chat cae al simulador como FALLBACK EXPLÍCITO (badge visible), nunca en
@@ -282,14 +333,33 @@ export default function ChatScreen({ navigation }) {
         data?.requires_confirmation === true && data?.action_id != null;
 
       await agregarMensajeAsistente({
-        contenido: data?.message || "Recibido.",
-        tarjeta: requiereConfirmar ? construirTarjetaResumen(data) : undefined,
+        contenido: contenidoRespuestaReal(data),
+        tarjeta: requiereConfirmar
+          ? data?.presentation || construirTarjetaResumen(data)
+          : data?.presentation || undefined,
         // El action_id viaja en el mensaje: es lo que confirmará el botón.
         accionAgenteId: requiereConfirmar ? data.action_id : undefined,
       });
     },
     [userId, agregarMensajeAsistente]
   );
+
+  /**
+   * Un timeout no implica que el backend haya fallado: busca una acción que
+   * haya quedado pendiente antes de mostrar una tarjeta de error.
+   */
+  const recuperarAccionPendiente = useCallback(async () => {
+    const threadId = agenteConversacionIdRef.current;
+    if (!threadId) return false;
+    try {
+      const accion = await obtenerAccionPendienteAgente(threadId);
+      if (!accion) return false;
+      await agregarRespuestaReal(respuestaDesdeAccionPendiente(accion, threadId));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [agregarRespuestaReal]);
 
   /** Crea la conversación local si es el primer mensaje del chat. */
   const asegurarConversacion = useCallback(
@@ -343,8 +413,12 @@ export default function ChatScreen({ navigation }) {
           await agregarRespuestaReal(data);
         }
       } catch (error) {
-        // Los errores no se guardan en el historial: son de esta sesión.
-        setMensajes((prev) => [...prev, mensajeError(error?.message)]);
+        const recuperada =
+          error?.status == null ? await recuperarAccionPendiente() : false;
+        if (!recuperada) {
+          // Los errores no se guardan en el historial: son de esta sesión.
+          setMensajes((prev) => [...prev, mensajeError(error?.message)]);
+        }
       } finally {
         setEnviando(false);
         scrollAlFinal();
@@ -357,6 +431,60 @@ export default function ChatScreen({ navigation }) {
       agregarRespuestaReal,
       usarSimulador,
       scrollAlFinal,
+      recuperarAccionPendiente,
+    ]
+  );
+
+  /** Envía una acción de tarjeta sin reinterpretarla como texto libre. */
+  const enviarInteraccion = useCallback(
+    async (mensajeId, interaction) => {
+      const etiqueta = interaction?.label || "Opción seleccionada";
+      const hora = horaActual();
+      const msgUsuario = {
+        id: `u-${Date.now()}`,
+        rol: "usuario",
+        contenido: etiqueta,
+        hora,
+      };
+      setMensajes((prev) => [...prev, msgUsuario]);
+      setTarjetasResueltas((prev) => [...prev, mensajeId]);
+      setEnviando(true);
+      scrollAlFinal();
+
+      await asegurarConversacion(hora);
+      await persistirMensaje(msgUsuario);
+      ultimoIntentoRef.current = {
+        tipo: "interaction",
+        mensajeId,
+        interaction,
+      };
+
+      try {
+        const data = await enviarInteraccionAgente({
+          interaction: {
+            type: interaction.type,
+            payload: interaction.payload,
+          },
+          threadId: agenteConversacionIdRef.current,
+        });
+        await agregarRespuestaReal(data);
+      } catch (error) {
+        const recuperada =
+          error?.status == null ? await recuperarAccionPendiente() : false;
+        if (!recuperada) {
+          setMensajes((prev) => [...prev, mensajeError(error?.message)]);
+        }
+      } finally {
+        setEnviando(false);
+        scrollAlFinal();
+      }
+    },
+    [
+      asegurarConversacion,
+      persistirMensaje,
+      agregarRespuestaReal,
+      recuperarAccionPendiente,
+      scrollAlFinal,
     ]
   );
 
@@ -367,15 +495,140 @@ export default function ChatScreen({ navigation }) {
     enviarTexto(mensaje);
   };
 
+  const seleccionarEvidencia = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setMensajes((prev) => [
+          ...prev,
+          mensajeError("Permite el acceso a tus fotos para adjuntar evidencia."),
+        ]);
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 3,
+        quality: 0.85,
+      });
+      if (result?.assets?.length) {
+        setEvidenciasPendientes((prev) => [...prev, ...result.assets].slice(0, 3));
+      }
+    } catch {
+      // La evidencia es opcional; un fallo del selector no bloquea el chat.
+    }
+  };
+
+  const enviarGrabacion = useCallback(
+    async (audio) => {
+      if (usarSimulador) {
+        setMensajes((prev) => [
+          ...prev,
+          mensajeError("La entrada por voz necesita conexión con el agente Qwen."),
+        ]);
+        return;
+      }
+      const hora = horaActual();
+      setEnviando(true);
+      scrollAlFinal();
+      await asegurarConversacion(hora);
+      try {
+        const data = await enviarAudioAgente({
+          audio,
+          images: evidenciasPendientes,
+          threadId: agenteConversacionIdRef.current,
+        });
+        const transcripcion = data?.transcription?.trim();
+        if (!transcripcion) throw new Error("No se reconoció ninguna frase en el audio.");
+        const msgUsuario = {
+          id: `u-voz-${Date.now()}`,
+          rol: "usuario",
+          contenido: `🎙️ ${transcripcion}`,
+          hora,
+        };
+        setMensajes((prev) => [...prev, msgUsuario]);
+        await persistirMensaje(msgUsuario);
+        await agregarRespuestaReal(data);
+      } catch (error) {
+        setMensajes((prev) => [
+          ...prev,
+          mensajeError(error?.message || "No pude procesar el mensaje de voz."),
+        ]);
+      } finally {
+        setEnviando(false);
+        scrollAlFinal();
+      }
+    },
+    [
+      usarSimulador,
+      asegurarConversacion,
+      persistirMensaje,
+      agregarRespuestaReal,
+      scrollAlFinal,
+      evidenciasPendientes,
+    ]
+  );
+
+  const alternarGrabacion = async () => {
+    if (enviando || procesandoVoz) return;
+    if (grabando) {
+      setProcesandoVoz(true);
+      try {
+        await audioRecorder.stop();
+        await setAudioModeAsync({ allowsRecording: false });
+        const uri = audioRecorder.uri;
+        if (!uri) throw new Error("No se pudo recuperar la grabación.");
+        await enviarGrabacion(await prepararAudioParaQwen(uri));
+      } catch (error) {
+        setMensajes((prev) => [
+          ...prev,
+          mensajeError(error?.message || "No pude guardar la grabación."),
+        ]);
+      } finally {
+        setProcesandoVoz(false);
+      }
+      return;
+    }
+
+    try {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setMensajes((prev) => [
+          ...prev,
+          mensajeError("Permite el acceso al micrófono para enviar mensajes de voz."),
+        ]);
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch (error) {
+      setMensajes((prev) => [
+        ...prev,
+        mensajeError(error?.message || "No pude iniciar el micrófono."),
+      ]);
+    }
+  };
+
   /** Ejecuta la acción de una tarjeta y encadena la respuesta del asistente. */
   const handleAccion = async (mensajeId, actionId) => {
     if (enviando) return;
+
+    if (actionId && typeof actionId === "object" && actionId.type) {
+      return enviarInteraccion(mensajeId, actionId);
+    }
 
     // Reintentar no es una acción del agente: repite el último intento fallido.
     if (actionId === ACCION_REINTENTAR) {
       const intento = ultimoIntentoRef.current;
       if (!intento) return;
       if (intento.tipo === "mensaje") return enviarTexto(intento.mensaje);
+      if (intento.tipo === "interaction") {
+        return enviarInteraccion(intento.mensajeId, intento.interaction);
+      }
       return ejecutarAccion(intento.mensajeId, intento.actionId);
     }
 
@@ -383,14 +636,27 @@ export default function ChatScreen({ navigation }) {
   };
 
   const ejecutarAccion = async (mensajeId, actionId) => {
-    // Cancelar es local: no hay endpoint de rechazo y no debe tocar el backend.
-    // Solo cierra la tarjeta para que no se pueda confirmar después.
+    // Rechazar debe llegar al backend; ocultar la tarjeta localmente dejaría el
+    // thread bloqueado por una acción PENDIENTE.
     if (actionId === ACCION_CANCELAR) {
-      setTarjetasResueltas((prev) => [...prev, mensajeId]);
-      await agregarMensajeAsistente({
-        contenido: "Listo, cancelé esa acción. ¿Necesitas algo más?",
-      });
-      scrollAlFinal();
+      setEnviando(true);
+      try {
+        const msg = mensajes.find((m) => m.id === mensajeId);
+        const accionAgenteId = msg?.accionAgenteId;
+        if (!usarSimulador && accionAgenteId != null) {
+          await rechazarAccionAgente(accionAgenteId);
+        }
+        setEvidenciasPendientes([]);
+        setTarjetasResueltas((prev) => [...prev, mensajeId]);
+        await agregarMensajeAsistente({
+          contenido: "Listo, rechacé esa acción. ¿Necesitas algo más?",
+        });
+      } catch (error) {
+        setMensajes((prev) => [...prev, mensajeError(error?.message)]);
+      } finally {
+        setEnviando(false);
+        scrollAlFinal();
+      }
       return;
     }
 
@@ -421,9 +687,26 @@ export default function ChatScreen({ navigation }) {
           const ejecutada =
             data?.estado === "EJECUTADA" || data?.resultado?.status === "success";
           if (ejecutada) {
+            const conversation = data?.conversation;
+            const incidentId =
+              data?.resultado?.incident_id ?? data?.backend_reference;
+            if (incidentId && evidenciasPendientes.length) {
+              try {
+                await agregarEvidenciasIncidencia(incidentId, evidenciasPendientes);
+                setEvidenciasPendientes([]);
+              } catch (uploadError) {
+                await agregarMensajeAsistente({
+                  contenido:
+                    "El reporte fue creado, pero no pude adjuntar la evidencia. Puedes agregarla desde Incidencias.",
+                });
+              }
+            }
             await agregarMensajeAsistente({
-              contenido: "¡Listo! La acción se ejecutó y quedó registrada.",
-              tarjeta: construirTarjetaComprobante(data),
+              contenido:
+                conversation?.message ||
+                "¡Listo! La acción se ejecutó y quedó registrada.",
+              tarjeta:
+                conversation?.presentation || construirTarjetaComprobante(data),
             });
           } else {
             // 200 pero no ejecutada (rechazada/vencida): error, nunca comprobante.
@@ -569,7 +852,7 @@ export default function ChatScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitulo}>Asistente TorreSegura</Text>
-          <Text style={styles.headerSubtitulo}>Reporta incidencias del edificio</Text>
+          <Text style={styles.headerSubtitulo}>Tu asistente para la residencia</Text>
         </View>
 
         {/* Con el simulador activo hay que decirlo, no esconderlo. El fallback
@@ -616,23 +899,63 @@ export default function ChatScreen({ navigation }) {
         {enviando && <BurbujaEscribiendo />}
 
         {/* Barra de entrada */}
+        {evidenciasPendientes.length > 0 && (
+          <View style={styles.evidenciasPendientes}>
+            {evidenciasPendientes.map((asset) => (
+              <View key={asset.uri} style={styles.evidenciaMiniaturaWrap}>
+                <Image source={{ uri: asset.uri }} style={styles.evidenciaMiniatura} />
+                <TouchableOpacity
+                  style={styles.quitarEvidencia}
+                  onPress={() =>
+                    setEvidenciasPendientes((prev) =>
+                      prev.filter((item) => item.uri !== asset.uri)
+                    )
+                  }
+                >
+                  <Icon name="close-circle" size={20} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={styles.barraInput}>
+          <TouchableOpacity
+            style={styles.botonAdjuntar}
+            onPress={seleccionarEvidencia}
+            disabled={enviando || grabando || procesandoVoz}
+            accessibilityLabel="Adjuntar evidencia"
+          >
+            <Icon name="attach" size={23} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.botonVoz, grabando && styles.botonVozGrabando]}
+            onPress={alternarGrabacion}
+            disabled={enviando || procesandoVoz}
+            accessibilityRole="button"
+            accessibilityLabel={grabando ? "Detener y enviar grabación" : "Grabar mensaje de voz"}
+          >
+            <Icon
+              name={grabando ? "stop" : "mic-outline"}
+              size={21}
+              color={grabando ? COLORS.white : COLORS.primary}
+            />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Describe el problema…"
+            placeholder={grabando ? "Grabando… toca detener para enviar" : "Describe el problema…"}
             placeholderTextColor={COLORS.gray}
             value={texto}
             onChangeText={setTexto}
             multiline
-            editable={!enviando}
+            editable={!enviando && !grabando}
           />
           <TouchableOpacity
             style={[
               styles.botonEnviar,
-              (!texto.trim() || enviando) && styles.botonEnviarDeshabilitado,
+              (!texto.trim() || enviando || grabando) && styles.botonEnviarDeshabilitado,
             ]}
             onPress={handleEnviar}
-            disabled={!texto.trim() || enviando}
+            disabled={!texto.trim() || enviando || grabando}
             accessibilityRole="button"
             accessibilityLabel="Enviar mensaje"
           >
@@ -746,6 +1069,48 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+  },
+  botonAdjuntar: {
+    width: 38,
+    height: 42,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 4,
+  },
+  botonVoz: {
+    width: 38,
+    height: 42,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 4,
+    borderRadius: 19,
+  },
+  botonVozGrabando: {
+    backgroundColor: COLORS.error,
+  },
+  evidenciasPendientes: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  evidenciaMiniaturaWrap: {
+    position: "relative",
+  },
+  evidenciaMiniatura: {
+    width: 58,
+    height: 58,
+    borderRadius: 8,
+  },
+  quitarEvidencia: {
+    position: "absolute",
+    top: -7,
+    right: -7,
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
   },
   input: {
     flex: 1,

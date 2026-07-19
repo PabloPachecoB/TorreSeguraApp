@@ -223,6 +223,40 @@ Una tarjeta es **lo que el agente quiere que la app dibuje**. La app no interpre
 
 Dónde se resuelve el `tipo`: `components/agente/TarjetaMensaje.js`. **Es el único archivo a tocar para soportar un tipo nuevo.** Un `tipo` desconocido no rompe la pantalla: la tarjeta no se dibuja y el texto del mensaje se muestra igual.
 
+### Presentaciones estructuradas del agente real
+
+El endpoint `/agente/acciones/chat/` puede devolver `presentation` además de
+`message`. La app ya reconoce dos formatos:
+
+- `common_area_cards`: tarjetas de áreas con capacidad, horario y acciones.
+- `availability_options`: fechas y horarios seleccionables mediante chips.
+
+Las acciones de estas tarjetas se reenvían sin convertirlas a texto:
+
+```js
+await enviarInteraccionAgente({
+  threadId,
+  interaction: {
+    type: "select_reservation_slot",
+    payload: {
+      area_id: 1,
+      date: "2026-07-20",
+      start_time: "15:00",
+      end_time: "20:00",
+    },
+  },
+});
+```
+
+También se admiten `check_area_availability` y `start_reservation`. El texto de
+`message` queda como fallback para versiones antiguas o formatos desconocidos.
+
+El chat usa un timeout de 45 segundos porque Qwen realiza clasificación y
+extracción. Si se pierde la respuesta, la app consulta `/agente/acciones/` hasta
+tres veces y recupera una acción `PENDIENTE` del mismo `thread_id` antes de
+mostrar un error. Cancelar una confirmación llama al endpoint `/rechazar/`; no
+se limita a ocultar la tarjeta localmente.
+
 ---
 
 ## 7. Reservas de áreas comunes (RES-04)
@@ -330,3 +364,25 @@ Puntos que hay que mirar con cuidado:
 
 **Al terminar:**
 - [ ] Verificar que **ningún archivo de `components/` haya necesitado cambios**, y que en `screens/ChatScreen.js` solo hayan cambiado el punto §4 y el badge de demo. Si tocaste otra cosa, la abstracción tiene una fuga — avisá.
+
+---
+
+## 11. Flujo real de revisión de incidencias
+
+El chat y el módulo de Incidencias soportan estas presentaciones reales:
+
+- `incident_initial_evaluation`: categoría, prioridad, costo orientativo y tiempo.
+- `incident_review_status`: versión vigente, técnico y aprobaciones.
+- `work_order`: orden aprobada y programación.
+
+La evidencia seleccionada en el chat se conserva hasta confirmar el reporte y se
+sube después al endpoint protegido de la incidencia. El módulo de Incidencias
+permite al residente aprobar un ajuste o solicitar revisión. La pantalla de
+Notificaciones combina alertas del edificio con notificaciones del flujo.
+
+```text
+POST /incidencias/{id}/evidencias/
+POST /incidencias/{id}/aprobar/
+POST /incidencias/{id}/solicitar-revision/
+GET  /incidencias/notificaciones/
+```

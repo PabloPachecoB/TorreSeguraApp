@@ -18,16 +18,19 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pablopacheco.TorreSegura",
       "infoPlist": {
-        "NSCameraUsageDescription": "Esta aplicación necesita acceso a la cámara para escanear códigos QR de los visitantes."
+        "NSCameraUsageDescription": "Esta aplicación necesita acceso a la cámara para escanear códigos QR de los visitantes.",
+        "NSMicrophoneUsageDescription": "TorreSegura usa el micrófono para enviar mensajes de voz al asistente."
       }
     },
     "android": {
       "package": "com.pablopacheco.TorreSegura",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -38,7 +41,20 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
         }
       ],
-      "expo-secure-store"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite que TorreSegura acceda a tus fotos para adjuntar evidencia a una incidencia."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "TorreSegura usa el micrófono para enviar mensajes de voz al asistente.",
+          "recordAudioAndroid": true
+        }
+      ]
     ]
   }
 }

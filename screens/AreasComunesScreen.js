@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  SafeAreaView,
   Modal,
   ScrollView,
   Alert,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Calendar } from "react-native-calendars";
 import Icon from "@expo/vector-icons/Ionicons";

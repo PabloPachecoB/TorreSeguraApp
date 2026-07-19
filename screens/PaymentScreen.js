@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
@@ -14,6 +13,7 @@ import {
   Image,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";

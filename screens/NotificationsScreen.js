@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Modal,
   TextInput,
@@ -15,6 +14,7 @@ import {
   Switch,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
@@ -23,6 +23,7 @@ import { COLORS, SIZES } from "../constants";
 import { ROLES } from "../constants/roles";
 import { listarAlertasEdificio } from "../services/alertasService";
 import { listarAnuncios, crearAnuncio, votarAnuncio } from "../services/anunciosService";
+import { getNotificacionesIncidencia } from "../services/incidenciasService";
 
 // ─── Config visual ───────────────────────────────────────────────────
 
@@ -132,8 +133,20 @@ export default function NotificationsScreen({ navigation }) {
   const loadData = useCallback(async () => {
     try {
       if (activeTab === "alertas") {
-        const data = await listarAlertasEdificio();
-        setAlertas(Array.isArray(data) ? data : []);
+        const [data, incidentNotifications] = await Promise.all([
+          listarAlertasEdificio(),
+          getNotificacionesIncidencia(),
+        ]);
+        const workflowAlerts = incidentNotifications.map((notification) => ({
+          id: `incidencia-${notification.id}`,
+          tipo: "Incidencia",
+          descripcion: notification.mensaje,
+          fecha: notification.fecha,
+          estado: notification.tipo === "ORDEN_APROBADA" ? "resuelto" : "en_proceso",
+          enviado_por_info: { username: "Asistente TorreSegura" },
+          incidencia_id: notification.incidencia_id,
+        }));
+        setAlertas([...(Array.isArray(data) ? data : []), ...workflowAlerts]);
       } else {
         const data = await listarAnuncios();
         setAnuncios(Array.isArray(data) ? data : []);

@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Alert, Platform, Vibration } from "react-native";
-import { Audio } from "expo-av";
+import { Alert, Vibration } from "react-native";
 import { useUserContext } from "../context/UserContext";
 import { obtenerAlertasNuevas } from "../services/alertasService";
 
@@ -32,20 +31,6 @@ export default function useAlertNotification() {
 
           // Vibrar
           Vibration.vibrate([0, 300, 150, 300]);
-
-          // Sonido
-          try {
-            const { sound } = await Audio.Sound.createAsync(
-              require("../assets/alert_beep.mp3")
-            );
-            await sound.playAsync();
-            // Liberar después de reproducir
-            sound.setOnPlaybackStatusUpdate((s) => {
-              if (s.didJustFinish) sound.unloadAsync();
-            });
-          } catch {
-            // Si no hay archivo de sonido, seguir sin error
-          }
 
           // Mostrar alerta nativa
           const count = nuevas.length;

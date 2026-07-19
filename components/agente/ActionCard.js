@@ -90,7 +90,7 @@ export default function ActionCard({
                 key={accion.id}
                 text={accion.texto}
                 icon={accion.icono}
-                onPress={() => onAccion?.(accion.id)}
+                onPress={() => onAccion?.(accion.interaction || accion.id)}
                 disabled={accion.deshabilitada || accionesOcupadas}
                 loading={accionesOcupadas && esPrimario}
                 variant={esPrimario ? "primary" : "outline"}

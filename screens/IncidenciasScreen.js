@@ -16,13 +16,13 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Icon from "@expo/vector-icons/Ionicons";
-import { launchImageLibrary } from "react-native-image-picker";
+import * as ImagePicker from "expo-image-picker";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { COLORS, SIZES } from "../constants";
@@ -30,11 +30,15 @@ import {
   crearIncidencia,
   getMisIncidencias,
   getIncidencia,
+  aprobarRevisionIncidencia,
+  solicitarRevisionIncidencia,
   CATEGORIAS,
   CATEGORIA_DEFAULT,
 } from "../services/incidenciasService";
 import { getAccessToken } from "../services/tokenStorage";
 import TarjetaError from "../components/agente/TarjetaError";
+import TarjetaRevisionIncidencia from "../components/agente/TarjetaRevisionIncidencia";
+import TarjetaOrdenTrabajo from "../components/agente/TarjetaOrdenTrabajo";
 
 const fmtFecha = (iso) => {
   if (!iso) return "";
@@ -88,6 +92,7 @@ export default function IncidenciasScreen({ navigation }) {
   const [detalleError, setDetalleError] = useState(null);
   const [detalleId, setDetalleId] = useState(null);
   const [token, setToken] = useState(null);
+  const [procesandoRevision, setProcesandoRevision] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -126,10 +131,25 @@ export default function IncidenciasScreen({ navigation }) {
 
   const agregarFoto = async () => {
     try {
-      const res = await launchImageLibrary({ mediaType: "photo", selectionLimit: 0 });
-      if (res?.didCancel) return;
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setCrearError({
+          tipo: "error",
+          titulo: "Permiso necesario",
+          mensaje: "Permite el acceso a tus fotos para adjuntar evidencia.",
+          permiteReintentar: false,
+        });
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+        quality: 0.85,
+      });
+      if (res?.canceled) return;
       if (res?.assets?.length) {
-        setArchivos((prev) => [...prev, ...res.assets]);
+        setArchivos((prev) => [...prev, ...res.assets].slice(0, 5));
       }
     } catch {
       // Si el picker falla, no bloqueamos el reporte: la foto es opcional.
@@ -245,6 +265,67 @@ export default function IncidenciasScreen({ navigation }) {
   );
 
   const campoRojo = (campo) => camposFaltantes.includes(campo);
+  const revisionVigente = detalle?.revisiones?.find((revision) => revision.vigente);
+  const residenteAprobo = revisionVigente?.aprobaciones?.some(
+    (approval) => approval.rol === "RESIDENTE" && approval.decision === "APROBADA"
+  );
+  const tarjetaRevision = revisionVigente ? {
+    type: "incident_review_status",
+    title: "Revisión del trabajo",
+    incident_id: detalle?.id,
+    status: detalle?.estado,
+    version: revisionVigente.version,
+    technician: detalle?.tecnico_asignado,
+    approvals: (revisionVigente.aprobaciones || []).map((approval) => ({
+      role: approval.rol,
+      decision: approval.decision,
+      actor: approval.usuario_nombre,
+      date: approval.fecha,
+    })),
+    evaluation: {
+      priority: revisionVigente.prioridad,
+      estimated_hours: revisionVigente.tiempo_estimado_horas,
+      estimated_cost_min: revisionVigente.costo_estimado_min,
+      estimated_cost_max: revisionVigente.costo_estimado_max,
+      currency: revisionVigente.moneda,
+    },
+    can_resident_decide: detalle?.estado === "EN_REVISION" && !residenteAprobo,
+  } : null;
+  const tarjetaOrden = detalle?.orden_trabajo ? {
+    type: "work_order",
+    title: "Orden de trabajo",
+    code: detalle.orden_trabajo.codigo,
+    status: detalle.orden_trabajo.estado,
+    category: revisionVigente?.categoria || detalle.categoria,
+    priority: revisionVigente?.prioridad || detalle.urgencia,
+    technician: detalle.orden_trabajo.tecnico_nombre,
+    scheduled_start: detalle.orden_trabajo.programada_inicio,
+    scheduled_end: detalle.orden_trabajo.programada_fin,
+  } : null;
+
+  const decidirComoResidente = async (decision) => {
+    if (!detalle?.id || procesandoRevision) return;
+    setProcesandoRevision(true);
+    setDetalleError(null);
+    try {
+      const response = decision === "aprobar_revision"
+        ? await aprobarRevisionIncidencia(detalle.id)
+        : await solicitarRevisionIncidencia(
+            detalle.id,
+            "El residente solicita revisar la evaluación."
+          );
+      setDetalle(response.incidencia);
+      await cargar();
+    } catch (error) {
+      setDetalleError({
+        tipo: "error",
+        titulo: "No se pudo registrar la decisión",
+        mensaje: error?.message || "Intenta nuevamente.",
+      });
+    } finally {
+      setProcesandoRevision(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -400,6 +481,21 @@ export default function IncidenciasScreen({ navigation }) {
                 </View>
                 <Text style={styles.detalleMeta}>{detalle.categoria_display || detalle.categoria} · {fmtFecha(detalle.fecha_creacion)}</Text>
                 <Text style={styles.detalleDescripcion}>{detalle.descripcion}</Text>
+
+                {!!tarjetaRevision && !tarjetaOrden && (
+                  <View style={styles.seccion}>
+                    <TarjetaRevisionIncidencia
+                      tarjeta={tarjetaRevision}
+                      onAccion={decidirComoResidente}
+                      ocupada={procesandoRevision}
+                    />
+                  </View>
+                )}
+                {!!tarjetaOrden && (
+                  <View style={styles.seccion}>
+                    <TarjetaOrdenTrabajo tarjeta={tarjetaOrden} />
+                  </View>
+                )}
 
                 {/* Evidencias — foto PROTEGIDA: va con el header Authorization. */}
                 {Array.isArray(detalle.evidencias) && detalle.evidencias.length > 0 && (

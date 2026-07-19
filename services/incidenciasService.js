@@ -10,6 +10,7 @@
 //   GET   /incidencias/<id>/             (detalle: evidencias + eventos)
 
 import { api, normalizeApiError } from "./apiClient";
+import { appendAsset, removeContentType } from "./multipartAsset";
 
 /** Categorías válidas del backend. La primera opción por defecto es OTRO. */
 export const CATEGORIAS = [
@@ -59,15 +60,12 @@ export async function crearIncidencia({ titulo, descripcion, categoria, archivos
   formData.append("descripcion", descripcion);
   if (categoria) formData.append("categoria", categoria);
 
-  archivos.forEach((asset, i) => {
-    formData.append("evidencias", {
-      uri: asset.uri,
-      // react-native-image-picker devuelve `fileName`/`type`; expo-image-picker
-      // devuelve `mimeType`. Se cubren ambos por si cambia el picker.
-      name: asset.name || asset.fileName || `evidencia-${Date.now()}-${i}.jpg`,
-      type: asset.type || asset.mimeType || "image/jpeg",
-    });
-  });
+  for (let i = 0; i < archivos.length; i += 1) {
+    await appendAsset(
+      formData, "evidencias", archivos[i],
+      `evidencia-${Date.now()}-${i}.jpg`, "image/jpeg"
+    );
+  }
 
   try {
     // apiClient trae `Content-Type: application/json` por defecto. Con un body
@@ -78,14 +76,7 @@ export async function crearIncidencia({ titulo, descripcion, categoria, archivos
     // archivos: el body es FormData en ambos casos.
     const response = await api.post("/incidencias/crear/", formData, {
       transformRequest: (data, headers) => {
-        if (headers) {
-          if (typeof headers.delete === "function") {
-            headers.delete("Content-Type");
-          } else {
-            delete headers["Content-Type"];
-            delete headers["content-type"];
-          }
-        }
+        removeContentType(headers);
         return data; // FormData tal cual; RN se encarga del multipart + boundary.
       },
     });
@@ -118,6 +109,56 @@ export async function getMisIncidencias() {
 export async function getIncidencia(id) {
   try {
     const response = await api.get(`/incidencias/${id}/`);
+    return response.data;
+  } catch (err) {
+    throw toRichError(err);
+  }
+}
+
+export async function aprobarRevisionIncidencia(id, comentario = "") {
+  try {
+    const response = await api.post(`/incidencias/${id}/aprobar/`, { comentario });
+    return response.data;
+  } catch (err) {
+    throw toRichError(err);
+  }
+}
+
+export async function solicitarRevisionIncidencia(id, comentario = "") {
+  try {
+    const response = await api.post(`/incidencias/${id}/solicitar-revision/`, {
+      comentario,
+    });
+    return response.data;
+  } catch (err) {
+    throw toRichError(err);
+  }
+}
+
+export async function getNotificacionesIncidencia() {
+  try {
+    const response = await api.get("/incidencias/notificaciones/");
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (err) {
+    throw toRichError(err);
+  }
+}
+
+export async function agregarEvidenciasIncidencia(id, archivos = []) {
+  const formData = new FormData();
+  for (let index = 0; index < archivos.length; index += 1) {
+    await appendAsset(
+      formData, "evidencias", archivos[index],
+      `evidencia-${Date.now()}-${index}.jpg`, "image/jpeg"
+    );
+  }
+  try {
+    const response = await api.post(`/incidencias/${id}/evidencias/`, formData, {
+      transformRequest: (data, headers) => {
+        removeContentType(headers);
+        return data;
+      },
+    });
     return response.data;
   } catch (err) {
     throw toRichError(err);

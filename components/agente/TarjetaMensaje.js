@@ -6,6 +6,11 @@ import TarjetaError from "./TarjetaError";
 import TarjetaDisponibilidad from "./TarjetaDisponibilidad";
 import TarjetaPaseVisita from "./TarjetaPaseVisita";
 import TarjetaLlegadaVisita from "./TarjetaLlegadaVisita";
+import TarjetaAreasComunes from "./TarjetaAreasComunes";
+import TarjetaOpcionesDisponibilidad from "./TarjetaOpcionesDisponibilidad";
+import TarjetaEvaluacionIncidencia from "./TarjetaEvaluacionIncidencia";
+import TarjetaRevisionIncidencia from "./TarjetaRevisionIncidencia";
+import TarjetaOrdenTrabajo from "./TarjetaOrdenTrabajo";
 
 /**
  * Mapa tipo de tarjeta → componente.
@@ -21,6 +26,11 @@ const COMPONENTES = {
   disponibilidad: TarjetaDisponibilidad,
   pase: TarjetaPaseVisita,
   llegada: TarjetaLlegadaVisita,
+  common_area_cards: TarjetaAreasComunes,
+  availability_options: TarjetaOpcionesDisponibilidad,
+  incident_initial_evaluation: TarjetaEvaluacionIncidencia,
+  incident_review_status: TarjetaRevisionIncidencia,
+  work_order: TarjetaOrdenTrabajo,
 };
 
 /**
@@ -39,9 +49,10 @@ export default function TarjetaMensaje({
   ocupada = false,
   resuelta = false,
 }) {
-  if (!tarjeta?.tipo) return null;
+  const tipo = tarjeta?.tipo || tarjeta?.type;
+  if (!tipo) return null;
 
-  const Componente = COMPONENTES[tarjeta.tipo];
+  const Componente = COMPONENTES[tipo];
 
   // Tipo desconocido (ej. el backend agrega un flujo que esta versión de la app
   // todavía no conoce): no se rompe la pantalla. El texto del mensaje ya se
