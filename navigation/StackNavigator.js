@@ -1,6 +1,6 @@
 // navigation/StackNavigator.js
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import AreasComunesScreen from "../screens/AreasComunesScreen";
@@ -13,10 +13,12 @@ import AlertScreen from "../screens/AlertaScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import ListaTotalScreen from '../screens/ListaTotalScreen'
 import WelcomeScreen from "../screens/WelcomeScreen";
-import VisitRequestScreen from '../screens/VisitRequestScreen'; 
+import VisitRequestScreen from '../screens/VisitRequestScreen';
+import ChatScreen from "../screens/ChatScreen";
+import IncidenciasScreen from "../screens/IncidenciasScreen";
 
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function StackNavigator() {
   return (
@@ -34,6 +36,8 @@ export default function StackNavigator() {
       <Stack.Screen name="PaymentScreen" component={PaymentScreen} options={{headerShown: false}}/>
       <Stack.Screen name="ListaTotalScreen" component={ListaTotalScreen} options={{headerShown: false}}/>
       <Stack.Screen name="VisitRequest" component={VisitRequestScreen} options={{headerShown: false}} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Incidencias" component={IncidenciasScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
   );
 }

@@ -12,29 +12,18 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        console.log("Cargando datos de usuario desde AsyncStorage...");
-        
         // Cargar usuario
         const storedUser = await AsyncStorage.getItem("user");
         // Intentar cargar token desde SecureStore/AsyncStorage
         const storedToken = (await getAccessToken()) || (await AsyncStorage.getItem("token"));
         
-        console.log("Usuario encontrado:", storedUser);
-        console.log("Token encontrado:", storedToken);
-        
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
-          console.log("Usuario cargado en contexto:", parsedUser);
         }
         
         if (storedToken) {
           setToken(storedToken);
-          console.log("Token cargado en contexto:", storedToken);
-        }
-        
-        if (!storedUser && !storedToken) {
-          console.log("No se encontraron datos de usuario ni token");
         }
       } catch (error) {
         console.error("Error al cargar datos desde AsyncStorage:", error);
@@ -46,9 +35,6 @@ export const UserProvider = ({ children }) => {
 
   const saveUser = async (newUser, userToken) => {
     try {
-      console.log("Guardando usuario:", newUser);
-      console.log("Guardando token:", userToken);
-      
       // Guardar usuario
       await AsyncStorage.setItem("user", JSON.stringify(newUser));
       setUser(newUser);
@@ -58,8 +44,6 @@ export const UserProvider = ({ children }) => {
         await AsyncStorage.setItem("token", userToken); // compatibilidad
         setToken(userToken);
       }
-      
-      console.log("Usuario y token guardados correctamente");
     } catch (error) {
       console.error("Error al guardar datos:", error);
       throw error;
@@ -69,8 +53,6 @@ export const UserProvider = ({ children }) => {
   // Función alternativa si el token viene dentro del objeto user
   const saveUserWithEmbeddedToken = async (userData) => {
     try {
-      console.log("Guardando datos de usuario completos:", userData);
-      
       // Extraer token del objeto userData si existe
       const userToken = userData.token || userData.accessToken || userData.authToken;
       const refreshToken = userData.refresh || userData.refreshToken;
@@ -92,16 +74,12 @@ export const UserProvider = ({ children }) => {
         await AsyncStorage.setItem("token", userToken); // compatibilidad
         await AsyncStorage.setItem("accessToken", userToken); // compatibilidad
         setToken(userToken);
-        console.log("Access token guardado:");
       }
 
       if (refreshToken) {
         await setRefreshToken(refreshToken);
         await AsyncStorage.setItem("refreshToken", refreshToken); // compatibilidad
-        console.log("Refresh token guardado");
       }
-      
-      console.log("Datos guardados correctamente");
     } catch (error) {
       console.error("Error al guardar datos:", error);
       throw error;
@@ -110,13 +88,11 @@ export const UserProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      console.log("Cerrando sesión...");
       // Limpiar todos los tokens y datos de usuario
       await clearTokens();
       await AsyncStorage.multiRemove(["user", "token", "accessToken", "refreshToken"]);
       setUser(null);
       setToken(null);
-      console.log("Sesión cerrada correctamente");
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
     }
@@ -124,7 +100,6 @@ export const UserProvider = ({ children }) => {
 
   const updateToken = async (newToken) => {
     try {
-      console.log("Actualizando token:", newToken);
       await setAccessToken(newToken);
       await AsyncStorage.setItem("token", newToken);
       setToken(newToken);
@@ -134,15 +109,7 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // Debug: Agregar logs para verificar estado
-  useEffect(() => {
-    console.log("=== ESTADO DEL CONTEXTO ===");
-    console.log("User:", user);
-    console.log("Token:", token);
-    console.log("Token type:", typeof token);
-    console.log("Token length:", token?.length);
-    console.log("=============================");
-  }, [user, token]);
+  // State updated when user or token changes
 
   return (
     <UserContext.Provider 

@@ -1,73 +1,119 @@
 // components/BottomNav.js
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import Icon from "react-native-vector-icons/Ionicons";
-import { useNavigationContext } from "../context/NavigationContext";
+import React, { useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
+import Icon from "@expo/vector-icons/Ionicons";
+import { useRoute } from "@react-navigation/native";
 import { COLORS, SIZES } from "../constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const TABS = [
+  {
+    id: "home",
+    label: "Home",
+    icon: "home-outline",
+    activeIcon: "home",
+    route: "Home",
+    action: (navigation) => navigation.navigate("Home"),
+  },
+  {
+    id: "notifications",
+    label: "Notificaciones",
+    icon: "notifications-outline",
+    activeIcon: "notifications",
+    route: "Notifications",
+    action: (navigation) => navigation.navigate("Notifications"),
+  },
+];
 
-export default function BottomNav({ navigation, role, username }) {
-  const { selectedTab, setSelectedTab } = useNavigationContext();
+export default function BottomNav({ navigation }) {
+  // El tab activo se deriva de la ruta actual: nunca se desincroniza
+  // al navegar con goBack ni al entrar por rutas que no son tabs.
+  const route = useRoute();
   const insets = useSafeAreaInsets();
 
-  const handleHomeTab = () => {
-    setSelectedTab("home");
-    navigation.navigate("Home", { username, role });
+  return (
+    <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
+      {TABS.map((tab) => (
+        <TabButton
+          key={tab.id}
+          tab={tab}
+          isActive={route.name === tab.route}
+          onPress={() => tab.action(navigation)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function TabButton({ tab, isActive, onPress }) {
+  const scaleValue = useRef(new Animated.Value(1)).current;
+  const opacityValue = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.parallel([
+      Animated.spring(scaleValue, {
+        toValue: 0.95,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityValue, {
+        toValue: 0.7,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
-  const handleNotificationsTab = () => {
-    setSelectedTab("notifications");
-    navigation.navigate("Notifications");
+  const handlePressOut = () => {
+    Animated.parallel([
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityValue, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   return (
-    <View style={[styles.bottomNav, {paddingBottom: insets.bottom}]}>
+    <Animated.View
+      style={[
+        styles.tabButtonContainer,
+        {
+          transform: [{ scale: scaleValue }],
+          opacity: opacityValue,
+        },
+      ]}
+    >
       <TouchableOpacity
         style={[
           styles.navButton,
-          selectedTab === "home" && { backgroundColor: COLORS.primary },
+          isActive && styles.navButtonActive,
         ]}
-        onPress={handleHomeTab}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
       >
         <Icon
-          name="home-outline"
+          name={isActive ? tab.activeIcon : tab.icon}
           size={SIZES.iconSize}
-          color={selectedTab === "home" ? COLORS.white : COLORS.black}
+          color={isActive ? COLORS.white : COLORS.black}
         />
         <Text
           style={[
             styles.navText,
-            selectedTab === "home" && { color: COLORS.white },
-            selectedTab === "home" && { fontFamily: "Roboto-Bold" },
+            isActive && styles.navTextActive,
           ]}
         >
-          Home
+          {tab.label}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={[
-          styles.navButton,
-          selectedTab === "notifications" && { backgroundColor: COLORS.primary },
-        ]}
-        onPress={handleNotificationsTab}
-      >
-        <Icon
-          name="notifications-outline"
-          size={SIZES.iconSize}
-          color={selectedTab === "notifications" ? COLORS.white : COLORS.black}
-        />
-        <Text
-          style={[
-            styles.navText,
-            selectedTab === "notifications" && { color: COLORS.white },
-            selectedTab === "notifications" && { fontFamily: "Roboto-Bold" },
-          ]}
-        >
-          Notificaciones
-        </Text>
-      </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -75,9 +121,11 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: COLORS.white,
-    paddingVertical: 15,
-    borderTopWidth: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
     borderTopColor: COLORS.border,
     position: "absolute",
     bottom: 0,
@@ -85,22 +133,35 @@ const styles = StyleSheet.create({
     right: 0,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tabButtonContainer: {
+    flex: 1,
+    alignItems: "center",
   },
   navButton: {
-    flex: 1, // Cada botón ocupa el mismo espacio
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     borderRadius: SIZES.borderRadius,
-    marginHorizontal: 10
+    marginHorizontal: 4,
+    flexDirection: "row",
+  },
+  navButtonActive: {
+    backgroundColor: COLORS.primary,
   },
   navText: {
     fontSize: SIZES.fontSizeSmall,
-    fontFamily: "Roboto-Regular", // Por defecto usamos Roboto-Regular
+    fontFamily: "Roboto-Regular",
     color: COLORS.black,
-    marginTop: 5,
+    marginLeft: 6,
+  },
+  navTextActive: {
+    color: COLORS.white,
+    fontFamily: "Roboto-Bold",
   },
 });

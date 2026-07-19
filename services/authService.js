@@ -8,13 +8,13 @@ export async function login(usernameOrEmail, password) {
       password,
     });
 
-    const { access, refresh, user } = response.data || {};
+    const { access, refresh, user, debe_cambiar_password, mensaje } = response.data || {};
     if (!access || !refresh) {
       throw new Error("Respuesta inválida del servidor (tokens faltantes)");
     }
 
     await setTokens({ access, refresh });
-    return { access, refresh, user };
+    return { access, refresh, user, debe_cambiar_password, mensaje };
   } catch (err) {
     const normalized = normalizeApiError(err);
     throw new Error(normalized.message);

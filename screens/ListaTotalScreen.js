@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/Ionicons";
+import Icon from "@expo/vector-icons/Ionicons";
 import BottomNav from "../components/BottomNav";
 import { useNavigationContext } from "../context/NavigationContext";
 import { useUserContext } from "../context/UserContext";
@@ -48,7 +48,7 @@ const mockEntries = [
 
 export default function ListaTotalScreen({ navigation }) {
   const { selectedTab } = useNavigationContext();
-  const { user } = useUserContext();
+  const { user, token } = useUserContext();
   const [entries, setEntries] = useState([]);
 
   // Cargar entradas desde el backend (simulado por ahora)
@@ -100,7 +100,7 @@ export default function ListaTotalScreen({ navigation }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({ status: "departed" }),
       });
@@ -114,9 +114,7 @@ export default function ListaTotalScreen({ navigation }) {
       setEntries(entries.filter((e) => e.id !== entry.id));
     } catch (error) {
       console.error("Error al marcar salida:", error);
-      saveNotification(`${entry.type === "residente" ? "Residente" : "Visitante"} ${entry.name} ha salido.`);
-      Alert.alert("Éxito", "Salida marcada correctamente (simulado).");
-      setEntries(entries.filter((e) => e.id !== entry.id));
+      Alert.alert("Error", "No se pudo marcar la salida. Intenta de nuevo.");
     }
   };
 

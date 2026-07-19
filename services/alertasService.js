@@ -12,6 +12,16 @@ export async function listarAlertas({ userId } = {}) {
   }
 }
 
+export async function listarAlertasEdificio() {
+  try {
+    const response = await api.get("/alertas/edificio/");
+    return response.data;
+  } catch (err) {
+    const normalized = normalizeApiError(err);
+    throw new Error(normalized.message);
+  }
+}
+
 export async function crearAlerta({ tipo, descripcion }) {
   try {
     const response = await api.post("/alertas/crear/", { tipo, descripcion });
@@ -31,3 +41,20 @@ export async function crearAlertaViewset({ tipo, descripcion }) {
     throw new Error(normalized.message);
   }
 }
+
+/**
+ * Polling: obtener alertas nuevas del edificio creadas después de `since` (ISO string).
+ */
+export async function obtenerAlertasNuevas(since) {
+  try {
+    const response = await api.get("/alertas/nuevas/", {
+      params: { since },
+    });
+    return response.data;
+  } catch (err) {
+    // Silenciar errores de polling para no molestar al usuario
+    console.warn("Error polling alertas:", err.message);
+    return [];
+  }
+}
+
