@@ -172,11 +172,15 @@ export async function obtenerAccionPendienteAgente(threadId) {
  * Confirma (EJECUTA) una acción pendiente. Única vía válida de confirmación.
  *
  * @param {number|string} actionId - El `action_id` que devolvió el chat.
+ * @param {string} [password] - 2º factor obligatorio para acciones de cerradura
+ *   (CERRADURA_ABRIR). Sin él, el backend responde 400 "debes reingresar tu
+ *   contraseña". Para el resto de acciones se omite.
  * @returns {Promise<object>} Resultado de la ejecución (ver contrato arriba).
  */
-export async function confirmarAccionAgente(actionId) {
+export async function confirmarAccionAgente(actionId, password) {
   try {
-    const { data } = await api.post(`/agente/acciones/${actionId}/confirmar/`);
+    const body = password ? { password } : {};
+    const { data } = await api.post(`/agente/acciones/${actionId}/confirmar/`, body);
     return data;
   } catch (err) {
     throw toRichError(err);

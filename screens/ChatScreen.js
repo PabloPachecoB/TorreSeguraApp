@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal,
 } from "react-native";
 import {
   AudioModule,
@@ -195,6 +196,16 @@ export default function ChatScreen({ navigation }) {
   // las acciones para no poder confirmar dos veces la misma reserva.
   const [tarjetasResueltas, setTarjetasResueltas] = useState([]);
   const [evidenciasPendientes, setEvidenciasPendientes] = useState([]);
+  // Modal de 2º factor para acciones de cerradura (reingreso de contraseña).
+  const [passwordModal, setPasswordModal] = useState({
+    visible: false,
+    mensajeId: null,
+    actionId: null,
+  });
+  const [passwordInput, setPasswordInput] = useState("");
+  // Guarda la contraseña ya ingresada para el reintento inmediato de
+  // ejecutarAccion (evita duplicar toda la lógica de confirmación).
+  const passwordConfirmRef = useRef(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
   const grabando = recorderState.isRecording;
@@ -339,6 +350,10 @@ export default function ChatScreen({ navigation }) {
           : data?.presentation || undefined,
         // El action_id viaja en el mensaje: es lo que confirmará el botón.
         accionAgenteId: requiereConfirmar ? data.action_id : undefined,
+        // Cerradura: el backend exige contraseña (2º factor) al confirmar. Se
+        // marca aquí para que el botón abra el modal de contraseña.
+        requierePassword:
+          requiereConfirmar && data?.confirmation?.requires_password === true,
       });
     },
     [userId, agregarMensajeAsistente]
@@ -660,6 +675,17 @@ export default function ChatScreen({ navigation }) {
       return;
     }
 
+    // Cerradura (2º factor): si la acción exige contraseña y aún no la tenemos,
+    // pedirla en el modal antes de confirmar. El backend rechaza sin ella.
+    if (actionId === ACCION_CONFIRMAR && !usarSimulador) {
+      const msgConf = mensajes.find((m) => m.id === mensajeId);
+      if (msgConf?.requierePassword && passwordConfirmRef.current == null) {
+        setPasswordInput("");
+        setPasswordModal({ visible: true, mensajeId, actionId });
+        return;
+      }
+    }
+
     setEnviando(true);
     // La tarjeta se marca resuelta apenas se toca: si el usuario puede tocar
     // "Confirmar" dos veces mientras carga, confirma dos veces.
@@ -683,7 +709,10 @@ export default function ChatScreen({ navigation }) {
           throw new Error("No encontré la acción a confirmar. Vuelve a pedir la reserva.");
         }
         try {
-          const data = await confirmarAccionAgente(accionAgenteId);
+          const data = await confirmarAccionAgente(
+            accionAgenteId,
+            passwordConfirmRef.current
+          );
           const ejecutada =
             data?.estado === "EJECUTADA" || data?.resultado?.status === "success";
           if (ejecutada) {
@@ -740,9 +769,29 @@ export default function ChatScreen({ navigation }) {
     } catch (error) {
       setMensajes((prev) => [...prev, mensajeError(error?.message)]);
     } finally {
+      // La contraseña vive solo lo que dura el intento de confirmación.
+      passwordConfirmRef.current = null;
       setEnviando(false);
       scrollAlFinal();
     }
+  };
+
+  /** Confirma el modal de contraseña: guarda el 2º factor y reintenta la acción. */
+  const confirmarConPassword = () => {
+    const pwd = passwordInput;
+    const { mensajeId, actionId } = passwordModal;
+    if (!pwd) return; // el botón está deshabilitado, pero por si acaso
+    passwordConfirmRef.current = pwd;
+    setPasswordModal({ visible: false, mensajeId: null, actionId: null });
+    setPasswordInput("");
+    ejecutarAccion(mensajeId, actionId);
+  };
+
+  /** Cierra el modal de contraseña sin confirmar. */
+  const cancelarPassword = () => {
+    passwordConfirmRef.current = null;
+    setPasswordModal({ visible: false, mensajeId: null, actionId: null });
+    setPasswordInput("");
   };
 
   /** Abre una conversación del historial en la pantalla de chat. */
@@ -974,6 +1023,52 @@ export default function ChatScreen({ navigation }) {
         onNuevaConversacion={handleNuevaConversacion}
         onEliminar={handleEliminarConversacion}
       />
+
+      <Modal
+        visible={passwordModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelarPassword}
+      >
+        <View style={styles.pwOverlay}>
+          <View style={styles.pwCard}>
+            <Text style={styles.pwTitulo}>Confirmación reforzada</Text>
+            <Text style={styles.pwTexto}>
+              Por seguridad, reingresa tu contraseña para abrir la puerta.
+            </Text>
+            <TextInput
+              style={styles.pwInput}
+              placeholder="Contraseña"
+              placeholderTextColor={COLORS.gray}
+              secureTextEntry
+              autoFocus
+              value={passwordInput}
+              onChangeText={setPasswordInput}
+              onSubmitEditing={confirmarConPassword}
+              returnKeyType="done"
+            />
+            <View style={styles.pwBotones}>
+              <TouchableOpacity
+                style={[styles.pwBoton, styles.pwCancelar]}
+                onPress={cancelarPassword}
+              >
+                <Text style={styles.pwCancelarTexto}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pwBoton,
+                  styles.pwConfirmar,
+                  !passwordInput && styles.pwBotonDeshabilitado,
+                ]}
+                onPress={confirmarConPassword}
+                disabled={!passwordInput}
+              >
+                <Text style={styles.pwConfirmarTexto}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -982,6 +1077,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  pwOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  pwCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 20,
+  },
+  pwTitulo: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginBottom: 6,
+  },
+  pwTexto: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginBottom: 16,
+  },
+  pwInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: 18,
+  },
+  pwBotones: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  pwBoton: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  pwCancelar: {
+    backgroundColor: "transparent",
+  },
+  pwCancelarTexto: {
+    color: COLORS.gray,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  pwConfirmar: {
+    backgroundColor: COLORS.primary,
+  },
+  pwConfirmarTexto: {
+    color: COLORS.white,
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  pwBotonDeshabilitado: {
+    opacity: 0.5,
   },
   header: {
     flexDirection: "row",
