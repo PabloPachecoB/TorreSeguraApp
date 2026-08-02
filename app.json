@@ -24,7 +24,6 @@
     },
     "android": {
       "package": "com.pablopacheco.TorreSegura",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
@@ -54,7 +53,8 @@
           "microphonePermission": "TorreSegura usa el micrófono para enviar mensajes de voz al asistente.",
           "recordAudioAndroid": true
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
